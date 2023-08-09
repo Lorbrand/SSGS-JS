@@ -1,10 +1,10 @@
 
 
-import SSGS from './dist/index.js'
+import SSGS from './index.js'
 
 new SSGS(1818, client => {
     // Called when a new client connects
-    
+
     console.log('New client connected');
 
     // Print all messages received from the client

@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc src/index.ts -outDir dist --module ES2022 --declaration true --esModuleInterop true --moduleResolution node",
+    "build": "tsc src/index.ts -outDir ./ --module ES2022 --declaration true --esModuleInterop true --moduleResolution node",
     "test": "node test.js"
   },
   "repository": {
