@@ -1,0 +1,39 @@
+{
+  "name": "ssgs",
+  "version": "1.0.0",
+  "description": "The Sensor Seal Gateway Server (SSGS) Node.js Module allows you to create a customized Sensor Seal Gateway Server that can perform customized processing of Sensor Seal measurements.",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc src/index.ts -outDir dist --module ES2022 --declaration true --esModuleInterop true --moduleResolution node",
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lorbrand/SSGS-Node.git"
+  },
+  "keywords": [
+    "Sensor",
+    "Seal",
+    "Node",
+    "IoT",
+    "Lorbrand",
+    "Gateway"
+  ],
+  "author": "Lorbrand",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Lorbrand/SSGS-Node/issues"
+  },
+  "homepage": "https://github.com/Lorbrand/SSGS-Node#readme",
+  "devDependencies": {
+    "@types/node": "^20.4.5"
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+    "authorized_gateways": [
+        {
+            "description": "This is an example gateway",
+            "uid": "4d ec 5d fa",
+            "key": "1a 02 d7 2e 8f f3 78 7f 31 19 e6 4d ec 5d fa 7b b3 42 a3 66 e5 18 28 df 97 ae ef a7 67 4d 62 aa"
+        }
+    ]
+}
