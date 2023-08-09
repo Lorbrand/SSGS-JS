@@ -39,7 +39,7 @@ export class SSGSCP {
         // Ensure packetType is a 8-bit unsigned integer
         if (packet.packetType < 0x00 || packet.packetType > 0xff) {
             this.errMsg = 'packetType field should be a 8-bit unsigned integer';
-            return null;
+            return null; 
         }
 
         // Ensure gatewayUID is a 4-byte array if provided
