@@ -2,6 +2,7 @@
 The Sensor Seal Gateway Server (SSGS) Node.js JavaScript Module allows you to create a customized Sensor Seal Gateway Server that can perform customized processing of Sensor Seal measurements.
 
 ## Installing
+Ensure you have Node.js version 12 or later installed and then follow the steps below:
 1. Create a package
    ```
    npm init
