@@ -3,30 +3,22 @@ The Sensor Seal Gateway Server (SSGS) Node.js JavaScript Module allows you to cr
 
 ## Installing
 1. Create a package
-   `npm init`
+   ```
+   npm init
+   ```
 
-2. Set the package type to "module"
-   `npm pkg set type="module"`
+3. Set the package type to "module"
+   ```
+   npm pkg set type="module"
+   ```
 
-3. Install SSGS
-   `npm i ssgs`
+5. Install SSGS
+   ```
+   npm i ssgs
+   ```
 
-## Configuring Authorized Gateways
-1. Create a `config.json` file in the root of the project directory.
-2. Edit the file with the correct details, e.g.
-```json
-{
-    "authorized_gateways": [
-        {
-            "description": "This is an example gateway",
-            "uid": "4d ec 5d fa",
-            "key": "1a 02 d7 2e 8f f3 78 7f 31 19 e6 4d ec 5d fa 7b b3 42 a3 66 e5 18 28 df 97 ae ef a7 67 4d 62 aa"
-        }
-    ]
-}
-```
-
-## Usage
+## Usage Example
+Import the SSGS module and use as follows:
 ```typescript
 import SSGS from 'ssgs'
 
@@ -51,3 +43,38 @@ new SSGS(1818, client => {
     }
 });
 ```
+
+## Port Forwarding
+If you want gateways to be able to connect to your SSGS server from outside your local network, you need to forward external traffic from UDP port 1818 (or the port the gateway was configured to connect to) to the SSGS server. It is recommended to keep all ports as 1818 unless you require multiple servers with the same public IP address.
+
+## Setting Up Gateways
+1. Connect the gateway to the internet via an ethernet cable. Power can be supplied to the gateway via Power over Ethernet (PoE) or the terminals.
+2. Navigate to https://gateway.sensorseal.com and sign in to your account.
+3. Select the gateway you wish to configure.
+4. Choose `SSGS` as the Connectivity Type
+5. Enter the hostname of your SSGS server. This could be `ssgs.example.com` or `192.168.1.40` for example.
+6. Enter the port of the SSGS server. This should be kept as 1818 unless you specifically changed the server's listening port.
+7. Click `Generate Key` to generate a new key for this gateway.
+
+## Configuring which gateways are allowed to connect
+1. Create a `config.json` file in the root of the project directory.
+2. Edit the file with the correct details, e.g.
+```json
+{
+    "authorized_gateways": [
+        {
+            "description": "This is an example gateway",
+            "uid": "4d ec 5d fa",
+            "key": "1a 02 d7 2e 8f f3 78 7f 31 19 e6 4d ec 5d fa 7b b3 42 a3 66 e5 18 28 df 97 ae ef a7 67 4d 62 aa"
+        }
+    ]
+}
+```
+
+## Starting the Server
+Start the server with
+```
+node server.js
+```
+where `server.js` is the name of your project's entry point.
+
