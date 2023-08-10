@@ -57,6 +57,8 @@ If you want gateways to be able to connect to your SSGS server from outside your
 5. Enter the hostname of your SSGS server. This could be `ssgs.example.com` or `192.168.1.40` for example.
 6. Enter the port of the SSGS server. This should be kept as 1818 unless you specifically changed the server's listening port.
 7. Click `Generate Key` to generate a new key for this gateway.
+8. Make note of the Gateway UID and key as these will be required in the `config.json` file, described below.
+9. Click `Save Changes`.
 
 ## Configuring which gateways are allowed to connect
 1. Create a `config.json` file in the root of the project directory.
