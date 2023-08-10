@@ -20,7 +20,7 @@ Ensure you have Node.js version 12 or later installed and then follow the steps 
 
 ## Usage Example
 1. Create a file named `server.js` for example.
-2. Import the SSGS module and use it as follows:
+2. In the file, import the SSGS module and use it as follows:
 ```typescript
 import SSGS from 'ssgs'
 
