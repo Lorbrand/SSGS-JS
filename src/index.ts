@@ -26,6 +26,8 @@ const __SSGS_DEBUG: boolean = false;
 
 const RECV_MSG_FIFO_MAX_LEN = 100;
 const SENT_MSG_LIST_MAX_LEN = 100;
+const RETRANSMISSION_COUNT_MAX = 10;
+const RETRANSMISSION_TIMEOUT_MS = 2000;
 
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
@@ -61,6 +63,9 @@ type SentMessage = {
     packetID: number; // the packet ID of the message
     timestamp: number; // the timestamp of when the message was sent
     packet: Buffer; // the packed SSGSCP packet
+    resolve: (receivedOk: boolean) => void; // the resolve function of the promise
+    receivedOk: boolean; // whether the message was received ok
+    retransmissionCount: number; // the number of times the message has been retransmitted
 };
 
 type Client = { // the client state machine
@@ -75,7 +80,14 @@ type Client = { // the client state machine
     key: Buffer; // the encryption key
     onmessage: (update: SensorSealUpdate) => void; // the callback function to handle incoming messages
     onreconnect: () => void; // the callback function to handle a client reconnecting
-    send: (payload: Buffer) => void; // the function to send a CONF packet to the client
+    /**
+     * @method
+     * @param {Buffer} payload - the payload to send to the client
+     * @returns {Promise<boolean>} - whether the message was received ok
+     * Sends a MSGCONF packet to the client and returns a promise resolving to whether the message was 
+     * received ok or false after it has been retransmitted RETRANSMISSION_COUNT_MAX times
+     */
+    send: (payload: Buffer) => Promise<boolean>; // the function to send a CONF packet to the client
 }
 
 class SSGS {
@@ -149,6 +161,14 @@ class SSGS {
                     });
                     logIfSSGSDebug('Retransmitting packet: ' + sentMessage.packetID + ', num pending: ' + client.sentMessages.length);
                     sentMessage.timestamp = Date.now();
+                    sentMessage.retransmissionCount++;
+                    
+                    // if the message has been retransmitted more than RETRANSMISSION_COUNT_MAX times, remove it from the list and resolve the promise to false
+                    if (sentMessage.retransmissionCount > RETRANSMISSION_COUNT_MAX) {
+                        sentMessage.resolve(false);
+                        client.sentMessages.splice(client.sentMessages.indexOf(sentMessage), 1);
+                    }
+
                     retransmittedCount++;
                 }
             }
@@ -166,7 +186,7 @@ class SSGS {
      * Sends a message to the specified client
      * The message is added to the sentMessages list and will be retransmitted if no RCPTOK packet is received within the retransmission timeout
      */
-    sendMSG(client: Client, packetType: PacketType, payload: Buffer) {
+    sendMSG(client: Client, packetType: PacketType, payload: Buffer): Promise<boolean> {
         const packet: ParsedSSGSCPPacket = {
             packetType,
             gatewayUID: client.gatewayUID,
@@ -186,11 +206,20 @@ class SSGS {
             }
         });
 
+        // create a promise that will be resolved when the RCPTOK packet is received
+        let resolve: (receivedOk: boolean) => void;
+        const promise = new Promise<boolean>((res, rej) => {
+            resolve = res;
+        });
+
         // add the sent message to the sentMessages list
         const sentMessage: SentMessage = {
             packetID: client.sendPacketID,             
             timestamp: Date.now(), // the timestamp of when the message was sent
             packet: packedPacket,
+            resolve, // called when the RCPTOK packet is received
+            receivedOk: false, // set to true when the RCPTOK packet is received
+            retransmissionCount: 0 // the number of times the message has been retransmitted
         };
 
         client.sentMessages.push(sentMessage);
@@ -202,6 +231,9 @@ class SSGS {
         if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
             client.sentMessages.shift();
         }
+
+        // return the promise that will be resolved when the RCPTOK packet is received
+        return promise;
     }
 
     /**
@@ -256,14 +288,14 @@ class SSGS {
                     remoteAddress: rinfo.address,
                     lastSeen: Date.now(),
                     sendPacketID: 0,
-                    retransmissionTimeout: 2000, // assume RTT is 2000 ms for now
+                    retransmissionTimeout: RETRANSMISSION_TIMEOUT_MS,
                     sentMessages: [],
                     receivedMessageIDsFIFO: [],
                     key: Buffer.from(key),
                     onmessage: (packet: ParsedSSGSCPPacket) => {},
                     onreconnect: () => {},
-                    send: (payload: Buffer) => {
-                        this.sendMSG(client, PacketType.MSGCONF, payload);
+                    send: async (payload: Buffer) => {
+                        return await this.sendMSG(client, PacketType.MSGCONF, payload);                        
                     }
                 };
 
@@ -286,7 +318,7 @@ class SSGS {
                 // we already have a client state machine but receivinng this could mean that the client restarted,
                 // so we need to reset part of the state machine
                 client.sendPacketID = 0;
-                client.retransmissionTimeout = 2000; // assume RTT is 2000 ms for now
+                client.retransmissionTimeout = RETRANSMISSION_TIMEOUT_MS; // assume RTT is 2000 ms for now
                 client.sentMessages = [];
                 client.receivedMessageIDsFIFO = [];
                 client.remoteAddress = rinfo.address;
@@ -308,6 +340,13 @@ class SSGS {
             case PacketType.RCPTOK: {
                 // packet we sent was received correctly by the client, so we can remove it from the sentMessages list
                 const sentMessage = client.sentMessages.find((m) => m.packetID === parsedPacket.packetID);
+
+                // resolve the promise that was returned by the sendMSG function
+                sentMessage.resolve(true);
+
+                // set the receivedOk flag to true
+                sentMessage.receivedOk = true;
+
                 if (sentMessage) {
                     const index = client.sentMessages.indexOf(sentMessage);
                     client.sentMessages.splice(index, 1);

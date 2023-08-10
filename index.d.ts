@@ -27,6 +27,9 @@ type SentMessage = {
     packetID: number;
     timestamp: number;
     packet: Buffer;
+    resolve: (receivedOk: boolean) => void;
+    receivedOk: boolean;
+    retransmissionCount: number;
 };
 type Client = {
     gatewayUID: Buffer;
@@ -40,7 +43,14 @@ type Client = {
     key: Buffer;
     onmessage: (update: SensorSealUpdate) => void;
     onreconnect: () => void;
-    send: (payload: Buffer) => void;
+    /**
+     * @method
+     * @param {Buffer} payload - the payload to send to the client
+     * @returns {Promise<boolean>} - whether the message was received ok
+     * Sends a MSGCONF packet to the client and returns a promise resolving to whether the message was
+     * received ok or false after it has been retransmitted RETRANSMISSION_COUNT_MAX times
+     */
+    send: (payload: Buffer) => Promise<boolean>;
 };
 declare class SSGS {
     port: number;
@@ -80,7 +90,7 @@ declare class SSGS {
      * Sends a message to the specified client
      * The message is added to the sentMessages list and will be retransmitted if no RCPTOK packet is received within the retransmission timeout
      */
-    sendMSG(client: Client, packetType: PacketType, payload: Buffer): void;
+    sendMSG(client: Client, packetType: PacketType, payload: Buffer): Promise<boolean>;
     /**
      * @method
      * @param {object} parsedPacket - the parsed packet object from SSGSCP.parseSSGSCP

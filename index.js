@@ -60,6 +60,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 var __SSGS_DEBUG = false;
 var RECV_MSG_FIFO_MAX_LEN = 100;
 var SENT_MSG_LIST_MAX_LEN = 100;
+var RETRANSMISSION_COUNT_MAX = 10;
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
 import { SSGSCP } from './ssgscp/ssgscp.js';
@@ -135,6 +136,12 @@ var SSGS = /** @class */ (function () {
                     });
                     logIfSSGSDebug('Retransmitting packet: ' + sentMessage.packetID + ', num pending: ' + client.sentMessages.length);
                     sentMessage.timestamp = Date.now();
+                    sentMessage.retransmissionCount++;
+                    // if the message has been retransmitted more than RETRANSMISSION_COUNT_MAX times, remove it from the list and resolve the promise to false
+                    if (sentMessage.retransmissionCount > RETRANSMISSION_COUNT_MAX) {
+                        sentMessage.resolve(false);
+                        client.sentMessages.splice(client.sentMessages.indexOf(sentMessage), 1);
+                    }
                     retransmittedCount++;
                 }
             }
@@ -166,11 +173,19 @@ var SSGS = /** @class */ (function () {
                 logIfSSGSDebug('Error: Could not send packet: ' + err);
             }
         });
+        // create a promise that will be resolved when the RCPTOK packet is received
+        var resolve;
+        var promise = new Promise(function (res, rej) {
+            resolve = res;
+        });
         // add the sent message to the sentMessages list
         var sentMessage = {
             packetID: client.sendPacketID,
             timestamp: Date.now(),
             packet: packedPacket,
+            resolve: resolve,
+            receivedOk: false,
+            retransmissionCount: 0 // the number of times the message has been retransmitted
         };
         client.sentMessages.push(sentMessage);
         // increment the packet ID
@@ -179,6 +194,8 @@ var SSGS = /** @class */ (function () {
         if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
             client.sentMessages.shift();
         }
+        // return the promise that will be resolved when the RCPTOK packet is received
+        return promise;
     };
     /**
      * @method
@@ -232,9 +249,14 @@ var SSGS = /** @class */ (function () {
                     key: Buffer.from(key),
                     onmessage: function (packet) { },
                     onreconnect: function () { },
-                    send: function (payload) {
-                        _this.sendMSG(client_1, 20 /* PacketType.MSGCONF */, payload);
-                    }
+                    send: function (payload) { return __awaiter(_this, void 0, void 0, function () {
+                        return __generator(this, function (_a) {
+                            switch (_a.label) {
+                                case 0: return [4 /*yield*/, this.sendMSG(client_1, 20 /* PacketType.MSGCONF */, payload)];
+                                case 1: return [2 /*return*/, _a.sent()];
+                            }
+                        });
+                    }); }
                 };
                 this.connectedClients.push(client_1);
                 this.onconnection(client_1);
@@ -270,6 +292,10 @@ var SSGS = /** @class */ (function () {
             case 10 /* PacketType.RCPTOK */: {
                 // packet we sent was received correctly by the client, so we can remove it from the sentMessages list
                 var sentMessage = client.sentMessages.find(function (m) { return m.packetID === parsedPacket.packetID; });
+                // resolve the promise that was returned by the sendMSG function
+                sentMessage.resolve(true);
+                // set the receivedOk flag to true
+                sentMessage.receivedOk = true;
                 if (sentMessage) {
                     var index = client.sentMessages.indexOf(sentMessage);
                     client.sentMessages.splice(index, 1);

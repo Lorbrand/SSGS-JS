@@ -1,10 +1,9 @@
 
 
-import SSGS from './index.js'
+import SSGS from './index.js';
 
 new SSGS(1818, client => {
     // Called when a new client connects
-
     console.log('New client connected');
 
     // Print all messages received from the client
@@ -17,6 +16,13 @@ new SSGS(1818, client => {
         console.log(`Voltage: ${message.voltage} mV`);
         console.log(`Message ID: ${message.msgID}`);
     };
+
+    setInterval(async () => {
+        // Send a message to the client
+        const success = await client.send(Buffer.from('Hello from the gateway!'));
+        console.log(`Message sent: ${success}`);
+    }, 1000);
+
 
     // Called when the client reconnects (power to gateway was lost and it restarted)
     client.onreconnect = () => {
