@@ -19,7 +19,8 @@ Ensure you have Node.js version 12 or later installed and then follow the steps 
    ```
 
 ## Usage Example
-Import the SSGS module and use as follows:
+1. Create a file named `server.js` for example.
+2. Import the SSGS module and use it as follows:
 ```typescript
 import SSGS from 'ssgs'
 
