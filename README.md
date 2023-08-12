@@ -61,7 +61,7 @@ There are two ways in which gateways connecting to the server can be authorized 
    - `description`: A description of the gateway. This is optional.
    - `uid`: The UID of the gateway as a string of hexadecimal bytes, optionally separated by spaces.
    - `key`: The key of the gateway as a string of hexadecimal bytes, optionally separated by spaces.
-   An example of this is shown below:
+An example of this is shown below:
 ```json
 {
     "authorized_gateways": [
@@ -76,7 +76,7 @@ There are two ways in which gateways connecting to the server can be authorized 
 2. The `onconnectionattempt` callback can be set after creating the SSGS server. This callback is called when a gateway attempts to connect to the server and can be used to authorize or reject the connection. The callback is passed the gateway's UID, source address, and source port. It should return the key of the gateway if the connection is to be authorized, or `null` if the connection is to be rejected. For example:
 ```typescript
 server.onconnectionattempt = async (gatewayUID, remoteAddress, port) => {
-    
+
     // Check if the gateway is authorized and return the key if it is
     // These two functions must be implemented by you
     if (gatewayIsAuthorized(gatewayUID)) {
