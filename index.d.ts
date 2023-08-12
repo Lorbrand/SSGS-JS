@@ -2,22 +2,15 @@
 /// <reference types="node" />
 import * as dgram from 'node:dgram';
 import { PacketType } from './ssgscp/ssgscp.js';
+import { MessageSubtype } from './ssgscp/ssprotocols.js';
+import { SensorSealUpdate } from './ssgscp/ssprotocols.js';
+import { ParsedMessage } from './ssgscp/ssprotocols.js';
 type ConfigFile = {
     key: string;
     authorized_gateways: Array<{
         uid: string;
         key: string;
     }>;
-};
-type SensorSealUpdate = {
-    gatewayUID: Buffer;
-    rawPayload: Buffer;
-    sensorSealUID: Buffer;
-    temperature: number | null;
-    vibration: number | null;
-    voltage: number | null;
-    rpm: number | null;
-    msgID: number | null;
 };
 type AuthorizedGateway = {
     gatewayUID: Buffer;
@@ -31,7 +24,7 @@ type SentMessage = {
     receivedOk: boolean;
     retransmissionCount: number;
 };
-type Client = {
+export type Client = {
     gatewayUID: Buffer;
     sourcePort: number;
     remoteAddress: string;
@@ -41,7 +34,8 @@ type Client = {
     sentMessages: Array<SentMessage>;
     receivedMessageIDsFIFO: Array<number>;
     key: Buffer;
-    onmessage: (update: SensorSealUpdate) => void;
+    onmessage: (update: ParsedMessage) => void;
+    onupdate: (update: SensorSealUpdate) => void;
     onreconnect: () => void;
     /**
      * @method
@@ -53,8 +47,22 @@ type Client = {
     send: (payload: Buffer) => Promise<boolean>;
 };
 declare class SSGS {
-    port: number;
+    /**
+     * @param {Client} client - the new authorized client that has connected
+     * The callback function that is called when a new client (gateway) has connected and is authenticated
+     */
     onconnection: (client: Client) => void;
+    /**
+     * @param {Buffer} gatewayUID - the UID of the gateway
+     * @param {string} remoteAddress - the IP address of the gateway that is attempting to connect
+     * @param {number} port - the UDP source port number of the gateway that is attempting to connect
+     * @returns {Buffer | null} - the key of the gateway if it should be authorized, null otherwise
+     * The callback function that is called when an unauthorized gateway (not in config file) attempts to connect
+     * Return the key of the gateway if it should be authorized, null otherwise
+     * If this function is not set, all unauthorized gateways will be rejected
+     */
+    onconnectionattempt: (gatewayUID: Buffer, remoteAddress: string, port: number) => Promise<Buffer | null>;
+    port: number;
     configFilePath: string;
     socket: dgram.Socket;
     configFile: ConfigFile;
@@ -64,7 +72,7 @@ declare class SSGS {
      * @constructor
      * @param {number} port - the UDP port number to listen for SSGSCP packets, default is 1818
      * @param {function} onmessage - the callback function to handle incoming messages
-     * @param {string} configFilePath - the path to the SSGS configuration file, default is './config.json'
+     * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
     constructor(port: number, onconnection: (client: Client) => void, configFilePath?: string);
     /**
@@ -97,7 +105,7 @@ declare class SSGS {
      * @param {object} rinfo - the remote address information from the UDP socket
      * Processes the incoming packet and calls the onmessage callback function
      */
-    process(datagram: Buffer, rinfo: dgram.RemoteInfo): void;
+    process(datagram: Buffer, rinfo: dgram.RemoteInfo): Promise<void>;
     /**
      * @method
      * @param {object} rinfo - the remote address information from the UDP socket
@@ -134,6 +142,13 @@ declare class SSGS {
     getGatewayKey(gatewayUID: Buffer): Buffer | null;
     /**
      * @method
+     * @param {Buffer} gatewayUID - the gateway UID to check
+     * @returns {Client | null} - the client object if the gateway UID is connected, null otherwise
+     * Checks if the gateway UID is connected and returns the client object if it is
+     */
+    getClientByGatewayUID(gatewayUID: Buffer): Client | null;
+    /**
+     * @method
      * @param {string} configFilePath - the path to the SSGS configuration file
      * Loads and parses the configuration file and sets up the authorized gateways and key properties
      */
@@ -158,3 +173,6 @@ declare class SSGS {
     static uidToString(uid: Buffer): string;
 }
 export default SSGS;
+export { MessageSubtype };
+export { SensorSealUpdate };
+export { ParsedMessage };

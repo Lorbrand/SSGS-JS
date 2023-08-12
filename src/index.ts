@@ -31,27 +31,21 @@ const RETRANSMISSION_TIMEOUT_MS = 2000;
 
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
+
 import { SSGSCP } from './ssgscp/ssgscp.js';
 import { ParsedSSGSCPPacket } from './ssgscp/ssgscp.js';
 import { PacketType } from './ssgscp/ssgscp.js';
-import SSProtocols from './ssprotocols/ssprotocols.js';
-import { assert } from 'node:console';
 
+import { MessageSubtype } from './ssgscp/ssprotocols.js';
+import { SensorSealUpdate } from './ssgscp/ssprotocols.js';
+import { ParsedMessage } from './ssgscp/ssprotocols.js';
+import SSProtocols from './ssgscp/ssprotocols.js';
+
+import { assert } from 'node:console';
 
 type ConfigFile = {
     key: string;
     authorized_gateways: Array<{ uid: string, key: string }>;
-};
-
-type SensorSealUpdate = {
-    gatewayUID: Buffer; // the UID of the gateway that sent the update
-    rawPayload: Buffer; // the raw payload contents of the SSGSCP packet
-    sensorSealUID: Buffer; // the UID of the sensor seal that sent the update
-    temperature: number | null; // the temperature value in degrees Celsius, or null if not present
-    vibration: number | null; // the vibration value mm/s^2 , or null if not present
-    voltage: number | null; // the generated voltage in volts, or null if not present
-    rpm: number | null; // the RPM value, or null if not present
-    msgID: number | null; // the message ID of the update packet, or null if not present
 };
 
 type AuthorizedGateway = {
@@ -68,7 +62,7 @@ type SentMessage = {
     retransmissionCount: number; // the number of times the message has been retransmitted
 };
 
-type Client = { // the client state machine
+export type Client = { // the client state machine
     gatewayUID: Buffer; // the client (gateway) UID
     sourcePort: number; // the UDP port number the client is sending from (ephemeral port)
     remoteAddress: string; // the IP address of the client
@@ -78,7 +72,8 @@ type Client = { // the client state machine
     sentMessages: Array<SentMessage>; // the list of sent messages
     receivedMessageIDsFIFO: Array<number>; // the list of received message IDs, needed for duplicate detection, max length is RECV_MSG_FIFO_MAX_LEN
     key: Buffer; // the encryption key
-    onmessage: (update: SensorSealUpdate) => void; // the callback function to handle incoming messages
+    onmessage: (update: ParsedMessage) => void; // the callback function to handle incoming messages from the gateway
+    onupdate: (update: SensorSealUpdate) => void; // the callback function to handle incoming Sensor Seal updates
     onreconnect: () => void; // the callback function to handle a client reconnecting
     /**
      * @method
@@ -91,8 +86,24 @@ type Client = { // the client state machine
 }
 
 class SSGS {
+    /**
+     * @param {Client} client - the new authorized client that has connected
+     * The callback function that is called when a new client (gateway) has connected and is authenticated
+     */
+    onconnection: (client: Client) => void; 
+
+    /**
+     * @param {Buffer} gatewayUID - the UID of the gateway
+     * @param {string} remoteAddress - the IP address of the gateway that is attempting to connect
+     * @param {number} port - the UDP source port number of the gateway that is attempting to connect
+     * @returns {Buffer | null} - the key of the gateway if it should be authorized, null otherwise
+     * The callback function that is called when an unauthorized gateway (not in config file) attempts to connect
+     * Return the key of the gateway if it should be authorized, null otherwise
+     * If this function is not set, all unauthorized gateways will be rejected
+     */
+    onconnectionattempt: (gatewayUID: Buffer, remoteAddress: string, port: number) => Promise<Buffer | null>;
+
     port: number; // the UDP port number to listen for SSGSCP packets
-    onconnection: (client: Client) => void; // the callback function to handle incoming connections
     configFilePath: string; // the path to the SSGS configuration file
     socket: dgram.Socket; // the UDP socket
     configFile: ConfigFile; // the configuration file object
@@ -103,11 +114,12 @@ class SSGS {
      * @constructor
      * @param {number} port - the UDP port number to listen for SSGSCP packets, default is 1818
      * @param {function} onmessage - the callback function to handle incoming messages
-     * @param {string} configFilePath - the path to the SSGS configuration file, default is './config.json'
+     * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
-    constructor(port: number = 1818, onconnection: (client: Client) => void, configFilePath: string = './config.json') {
+    constructor(port: number = 1818, onconnection: (client: Client) => void, configFilePath: string = './authorized.json') {
         this.port = port;
         this.onconnection = onconnection;
+        this.onconnectionattempt = async (gatewayUID, remoteAddress, port) => { return null; }; // default to rejecting all unauthorized gateways
         this.configFilePath = configFilePath;
         this.socket = null;
         this.configFile = null;
@@ -162,7 +174,7 @@ class SSGS {
                     logIfSSGSDebug('Retransmitting packet: ' + sentMessage.packetID + ', num pending: ' + client.sentMessages.length);
                     sentMessage.timestamp = Date.now();
                     sentMessage.retransmissionCount++;
-                    
+
                     // if the message has been retransmitted more than RETRANSMISSION_COUNT_MAX times, remove it from the list and resolve the promise to false
                     if (sentMessage.retransmissionCount > RETRANSMISSION_COUNT_MAX) {
                         sentMessage.resolve(false);
@@ -214,7 +226,7 @@ class SSGS {
 
         // add the sent message to the sentMessages list
         const sentMessage: SentMessage = {
-            packetID: client.sendPacketID,             
+            packetID: client.sendPacketID,
             timestamp: Date.now(), // the timestamp of when the message was sent
             packet: packedPacket,
             resolve, // called when the RCPTOK packet is received
@@ -242,7 +254,7 @@ class SSGS {
      * @param {object} rinfo - the remote address information from the UDP socket
      * Processes the incoming packet and calls the onmessage callback function
      */
-    process(datagram: Buffer, rinfo: dgram.RemoteInfo) {
+    async process(datagram: Buffer, rinfo: dgram.RemoteInfo) {
 
         const gatewayUID = SSGSCP.parsePacketGatewayUID(datagram);
         if (!gatewayUID) {
@@ -250,12 +262,22 @@ class SSGS {
             return;
         }
 
+        let callbackProvidedKey: Buffer | null = null;
+
         if (!this.isAuthorizedGateway(gatewayUID)) {
-            logIfSSGSDebug('Error: Connecting gateway is not authorized in config');
-            return;
+            logIfSSGSDebug('Connecting gateway is not authorized in config, trying onconnectionattempt callback');
+            
+            callbackProvidedKey = await this.onconnectionattempt(gatewayUID, rinfo.address, rinfo.port);
+            if (!callbackProvidedKey) {
+                logIfSSGSDebug('onconnectionattempt did not authorize gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
+                this.sendCONNFAIL(rinfo, gatewayUID);
+                return;
+            }
+              
+            logIfSSGSDebug('onconnectionattempt authorized gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
         }
 
-        const key = this.getGatewayKey(gatewayUID);
+        const key = this.getGatewayKey(gatewayUID) || callbackProvidedKey;
         if (!key) {
             logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
             return;
@@ -292,10 +314,11 @@ class SSGS {
                     sentMessages: [],
                     receivedMessageIDsFIFO: [],
                     key: Buffer.from(key),
-                    onmessage: (packet: ParsedSSGSCPPacket) => {},
-                    onreconnect: () => {},
+                    onmessage: (parsedMessage: ParsedMessage) => { },
+                    onupdate: (parsedUpdate: SensorSealUpdate) => { },
+                    onreconnect: () => { },
                     send: async (payload: Buffer) => {
-                        return await this.sendMSG(client, PacketType.MSGCONF, payload);                        
+                        return await this.sendMSG(client, PacketType.MSGCONF, payload);
                     }
                 };
 
@@ -357,7 +380,7 @@ class SSGS {
                 return;
             }
 
-            // MSGSTATUS is sent by the client to the server and contains a Sensor Seal status update
+            // MSGSTATUS is sent by the client to the server 
             case PacketType.MSGSTATUS: {
                 // check for duplicate packet ID in FIFO and ignore if found, otherwise add to FIFO
                 if (client.receivedMessageIDsFIFO.includes(parsedPacket.packetID)) {
@@ -377,22 +400,20 @@ class SSGS {
                 // send RCPTOK to client to indicate that we received the packet
                 this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
 
-                // try parse the measurements from a variety of SSGSCP payload formats
-                const sensorSealUpdateParams = SSProtocols.parse(parsedPacket.payload);
+                // try parse from a variety of SSGSCP MSG payload formats
+                const parsedMessage = SSProtocols.parse(parsedPacket);
 
-                // call the onmessage callback function
-                const update: SensorSealUpdate = {
-                    gatewayUID: parsedPacket.gatewayUID,
-                    rawPayload: parsedPacket.payload, // the raw payload of the SSGSCP packet
-                    sensorSealUID: sensorSealUpdateParams.sensorSealUID ?? null,
-                    temperature: sensorSealUpdateParams.temperature ?? null,
-                    vibration: sensorSealUpdateParams.vibration ?? null,
-                    rpm: sensorSealUpdateParams.rpm ?? null,
-                    voltage: sensorSealUpdateParams.voltage ?? null,
-                    msgID: sensorSealUpdateParams.msgID ?? null,
-                };
+                if (!parsedMessage) {
+                    logIfSSGSDebug('Error: Could not parse message');
+                    return;
+                }
 
-                client.onmessage(update);
+                client.onmessage(parsedMessage);
+
+                if (parsedMessage.messageType === MessageSubtype.SSRB_UPDATE) {
+                    client.onupdate(<SensorSealUpdate>parsedMessage.data);
+                }
+
                 return;
             }
 
@@ -503,6 +524,23 @@ class SSGS {
 
     /**
      * @method
+     * @param {Buffer} gatewayUID - the gateway UID to check
+     * @returns {Client | null} - the client object if the gateway UID is connected, null otherwise
+     * Checks if the gateway UID is connected and returns the client object if it is
+     */
+    getClientByGatewayUID(gatewayUID: Buffer): Client | null {
+        // TODO: optimize this using a binary search hash table
+        for (const client of this.connectedClients) {
+            if (SSGS.gatewayUIDsMatch(client.gatewayUID, gatewayUID)) {
+                return client;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @method
      * @param {string} configFilePath - the path to the SSGS configuration file 
      * Loads and parses the configuration file and sets up the authorized gateways and key properties
      */
@@ -580,6 +618,10 @@ class SSGS {
 };
 
 export default SSGS;
+export { MessageSubtype };
+export { SensorSealUpdate };
+export { ParsedMessage };
+
 
 /**
  * @function

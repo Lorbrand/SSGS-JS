@@ -61,23 +61,28 @@ var __SSGS_DEBUG = false;
 var RECV_MSG_FIFO_MAX_LEN = 100;
 var SENT_MSG_LIST_MAX_LEN = 100;
 var RETRANSMISSION_COUNT_MAX = 10;
+var RETRANSMISSION_TIMEOUT_MS = 2000;
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
 import { SSGSCP } from './ssgscp/ssgscp.js';
-import SSProtocols from './ssprotocols/ssprotocols.js';
+import SSProtocols from './ssgscp/ssprotocols.js';
 import { assert } from 'node:console';
 var SSGS = /** @class */ (function () {
     /**
      * @constructor
      * @param {number} port - the UDP port number to listen for SSGSCP packets, default is 1818
      * @param {function} onmessage - the callback function to handle incoming messages
-     * @param {string} configFilePath - the path to the SSGS configuration file, default is './config.json'
+     * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
     function SSGS(port, onconnection, configFilePath) {
         if (port === void 0) { port = 1818; }
-        if (configFilePath === void 0) { configFilePath = './config.json'; }
+        if (configFilePath === void 0) { configFilePath = './authorized.json'; }
+        var _this = this;
         this.port = port;
         this.onconnection = onconnection;
+        this.onconnectionattempt = function (gatewayUID, remoteAddress, port) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
+            return [2 /*return*/, null];
+        }); }); }; // default to rejecting all unauthorized gateways
         this.configFilePath = configFilePath;
         this.socket = null;
         this.configFile = null;
@@ -204,157 +209,169 @@ var SSGS = /** @class */ (function () {
      * Processes the incoming packet and calls the onmessage callback function
      */
     SSGS.prototype.process = function (datagram, rinfo) {
-        var _this = this;
-        var _a, _b, _c, _d, _e, _f;
-        var gatewayUID = SSGSCP.parsePacketGatewayUID(datagram);
-        if (!gatewayUID) {
-            logIfSSGSDebug('Error: Could not parse gateway UID from packet');
-            return;
-        }
-        if (!this.isAuthorizedGateway(gatewayUID)) {
-            logIfSSGSDebug('Error: Connecting gateway is not authorized in config');
-            return;
-        }
-        var key = this.getGatewayKey(gatewayUID);
-        if (!key) {
-            logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
-            return;
-        }
-        var parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
-        if (!parsedPacket) { // could not parse due to authentication error or other reason
-            logIfSSGSDebug('Error: Could not parse packet: ' + SSGSCP.errMsg);
-            this.sendCONNFAIL(rinfo, gatewayUID);
-            return;
-        }
-        if (!parsedPacket.authSuccess) {
-            logIfSSGSDebug('Error: Could not authenticate gateway');
-            this.sendCONNFAIL(rinfo, gatewayUID);
-            return;
-        }
-        // try find the Client state machine for this gateway client (in connectedClients)
-        var client = this.connectedClients.find(function (c) { return SSGS.gatewayUIDsMatch(c.gatewayUID, parsedPacket.gatewayUID); });
-        // if the client is not found, this is a new connection, so we need to add it to the connectedClients list
-        if (!client) {
-            if (parsedPacket.packetType === 1 /* PacketType.CONN */) {
-                this.sendCONNACPT(rinfo, Buffer.from(key), parsedPacket.gatewayUID);
-                var client_1 = {
-                    gatewayUID: parsedPacket.gatewayUID,
-                    sourcePort: rinfo.port,
-                    remoteAddress: rinfo.address,
-                    lastSeen: Date.now(),
-                    sendPacketID: 0,
-                    retransmissionTimeout: 2000,
-                    sentMessages: [],
-                    receivedMessageIDsFIFO: [],
-                    key: Buffer.from(key),
-                    onmessage: function (packet) { },
-                    onreconnect: function () { },
-                    send: function (payload) { return __awaiter(_this, void 0, void 0, function () {
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0: return [4 /*yield*/, this.sendMSG(client_1, 20 /* PacketType.MSGCONF */, payload)];
-                                case 1: return [2 /*return*/, _a.sent()];
+        return __awaiter(this, void 0, void 0, function () {
+            var gatewayUID, callbackProvidedKey, key, parsedPacket, client, client_1, sentMessage, index, parsedMessage;
+            var _this = this;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        gatewayUID = SSGSCP.parsePacketGatewayUID(datagram);
+                        if (!gatewayUID) {
+                            logIfSSGSDebug('Error: Could not parse gateway UID from packet');
+                            return [2 /*return*/];
+                        }
+                        callbackProvidedKey = null;
+                        if (!!this.isAuthorizedGateway(gatewayUID)) return [3 /*break*/, 2];
+                        logIfSSGSDebug('Connecting gateway is not authorized in config, trying onconnectionattempt callback');
+                        return [4 /*yield*/, this.onconnectionattempt(gatewayUID, rinfo.address, rinfo.port)];
+                    case 1:
+                        callbackProvidedKey = _a.sent();
+                        if (!callbackProvidedKey) {
+                            logIfSSGSDebug('onconnectionattempt did not authorize gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
+                            this.sendCONNFAIL(rinfo, gatewayUID);
+                            return [2 /*return*/];
+                        }
+                        logIfSSGSDebug('onconnectionattempt authorized gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
+                        _a.label = 2;
+                    case 2:
+                        key = this.getGatewayKey(gatewayUID) || callbackProvidedKey;
+                        if (!key) {
+                            logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
+                            return [2 /*return*/];
+                        }
+                        parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
+                        if (!parsedPacket) { // could not parse due to authentication error or other reason
+                            logIfSSGSDebug('Error: Could not parse packet: ' + SSGSCP.errMsg);
+                            this.sendCONNFAIL(rinfo, gatewayUID);
+                            return [2 /*return*/];
+                        }
+                        if (!parsedPacket.authSuccess) {
+                            logIfSSGSDebug('Error: Could not authenticate gateway');
+                            this.sendCONNFAIL(rinfo, gatewayUID);
+                            return [2 /*return*/];
+                        }
+                        client = this.connectedClients.find(function (c) { return SSGS.gatewayUIDsMatch(c.gatewayUID, parsedPacket.gatewayUID); });
+                        // if the client is not found, this is a new connection, so we need to add it to the connectedClients list
+                        if (!client) {
+                            if (parsedPacket.packetType === 1 /* PacketType.CONN */) {
+                                this.sendCONNACPT(rinfo, Buffer.from(key), parsedPacket.gatewayUID);
+                                client_1 = {
+                                    gatewayUID: parsedPacket.gatewayUID,
+                                    sourcePort: rinfo.port,
+                                    remoteAddress: rinfo.address,
+                                    lastSeen: Date.now(),
+                                    sendPacketID: 0,
+                                    retransmissionTimeout: RETRANSMISSION_TIMEOUT_MS,
+                                    sentMessages: [],
+                                    receivedMessageIDsFIFO: [],
+                                    key: Buffer.from(key),
+                                    onmessage: function (parsedMessage) { },
+                                    onupdate: function (parsedUpdate) { },
+                                    onreconnect: function () { },
+                                    send: function (payload) { return __awaiter(_this, void 0, void 0, function () {
+                                        return __generator(this, function (_a) {
+                                            switch (_a.label) {
+                                                case 0: return [4 /*yield*/, this.sendMSG(client_1, 20 /* PacketType.MSGCONF */, payload)];
+                                                case 1: return [2 /*return*/, _a.sent()];
+                                            }
+                                        });
+                                    }); }
+                                };
+                                this.connectedClients.push(client_1);
+                                this.onconnection(client_1);
+                                return [2 /*return*/];
                             }
-                        });
-                    }); }
-                };
-                this.connectedClients.push(client_1);
-                this.onconnection(client_1);
-                return;
-            }
-            else {
-                logIfSSGSDebug('Error: Client not found in connectedClients and packet type is not CONN');
-                this.sendCONNFAIL(rinfo, parsedPacket.gatewayUID);
-                return;
-            }
-        }
-        client.lastSeen = Date.now();
-        switch (parsedPacket.packetType) {
-            // CONNACPT is sent by the server to the client to indicate that the CONN packet was received
-            case 1 /* PacketType.CONN */: {
-                // we already have a client state machine but receivinng this could mean that the client restarted,
-                // so we need to reset part of the state machine
-                client.sendPacketID = 0;
-                client.retransmissionTimeout = 2000; // assume RTT is 2000 ms for now
-                client.sentMessages = [];
-                client.receivedMessageIDsFIFO = [];
-                client.remoteAddress = rinfo.address;
-                client.sourcePort = rinfo.port;
-                logIfSSGSDebug('Warning: Received CONN packet from already connected client, assuming client restarted');
-                // send CONNACPT to client to indicate that we received the packet
-                this.sendCONNACPT(rinfo, Buffer.from(key), parsedPacket.gatewayUID);
-                setTimeout(function () {
-                    client.onreconnect();
-                }, client.retransmissionTimeout);
-                return;
-            }
-            // RCPTOK is sent by the client or server to indicate that a packet was received correctly
-            case 10 /* PacketType.RCPTOK */: {
-                // packet we sent was received correctly by the client, so we can remove it from the sentMessages list
-                var sentMessage = client.sentMessages.find(function (m) { return m.packetID === parsedPacket.packetID; });
-                // resolve the promise that was returned by the sendMSG function
-                sentMessage.resolve(true);
-                // set the receivedOk flag to true
-                sentMessage.receivedOk = true;
-                if (sentMessage) {
-                    var index = client.sentMessages.indexOf(sentMessage);
-                    client.sentMessages.splice(index, 1);
+                            else {
+                                logIfSSGSDebug('Error: Client not found in connectedClients and packet type is not CONN');
+                                this.sendCONNFAIL(rinfo, parsedPacket.gatewayUID);
+                                return [2 /*return*/];
+                            }
+                        }
+                        client.lastSeen = Date.now();
+                        switch (parsedPacket.packetType) {
+                            // CONNACPT is sent by the server to the client to indicate that the CONN packet was received
+                            case 1 /* PacketType.CONN */: {
+                                // we already have a client state machine but receivinng this could mean that the client restarted,
+                                // so we need to reset part of the state machine
+                                client.sendPacketID = 0;
+                                client.retransmissionTimeout = RETRANSMISSION_TIMEOUT_MS; // assume RTT is 2000 ms for now
+                                client.sentMessages = [];
+                                client.receivedMessageIDsFIFO = [];
+                                client.remoteAddress = rinfo.address;
+                                client.sourcePort = rinfo.port;
+                                logIfSSGSDebug('Warning: Received CONN packet from already connected client, assuming client restarted');
+                                // send CONNACPT to client to indicate that we received the packet
+                                this.sendCONNACPT(rinfo, Buffer.from(key), parsedPacket.gatewayUID);
+                                setTimeout(function () {
+                                    client.onreconnect();
+                                }, client.retransmissionTimeout);
+                                return [2 /*return*/];
+                            }
+                            // RCPTOK is sent by the client or server to indicate that a packet was received correctly
+                            case 10 /* PacketType.RCPTOK */: {
+                                sentMessage = client.sentMessages.find(function (m) { return m.packetID === parsedPacket.packetID; });
+                                // resolve the promise that was returned by the sendMSG function
+                                sentMessage.resolve(true);
+                                // set the receivedOk flag to true
+                                sentMessage.receivedOk = true;
+                                if (sentMessage) {
+                                    index = client.sentMessages.indexOf(sentMessage);
+                                    client.sentMessages.splice(index, 1);
+                                }
+                                else {
+                                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
+                                }
+                                return [2 /*return*/];
+                            }
+                            // MSGSTATUS is sent by the client to the server 
+                            case 21 /* PacketType.MSGSTATUS */: {
+                                // check for duplicate packet ID in FIFO and ignore if found, otherwise add to FIFO
+                                if (client.receivedMessageIDsFIFO.includes(parsedPacket.packetID)) {
+                                    logIfSSGSDebug('Warning: Received duplicate MSGSTATUS packet ID ' + parsedPacket.packetID);
+                                    // send RCPTOK to client to indicate that we received the packet
+                                    this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
+                                    return [2 /*return*/];
+                                }
+                                else {
+                                    client.receivedMessageIDsFIFO.push(parsedPacket.packetID);
+                                    if (client.receivedMessageIDsFIFO.length > RECV_MSG_FIFO_MAX_LEN) {
+                                        client.receivedMessageIDsFIFO.shift(); // remove the oldest packet ID, shift left
+                                    }
+                                }
+                                // send RCPTOK to client to indicate that we received the packet
+                                this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
+                                parsedMessage = SSProtocols.parse(parsedPacket);
+                                if (!parsedMessage) {
+                                    logIfSSGSDebug('Error: Could not parse message');
+                                    return [2 /*return*/];
+                                }
+                                client.onmessage(parsedMessage);
+                                if (parsedMessage.messageType === 83 /* MessageSubtype.SSRB_UPDATE */) {
+                                    client.onupdate(parsedMessage.data);
+                                }
+                                return [2 /*return*/];
+                            }
+                            // outbound server->gateway packet types (should never be received by server)
+                            case 20 /* PacketType.MSGCONF */: {
+                                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                                return [2 /*return*/];
+                            }
+                            case 2 /* PacketType.CONNACPT */: {
+                                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                                return [2 /*return*/];
+                            }
+                            case 3 /* PacketType.CONNFAIL */: {
+                                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                                return [2 /*return*/];
+                            }
+                            default: {
+                                assert(false, 'Software Error: default clause in process() should never be reached');
+                            }
+                        }
+                        return [2 /*return*/];
                 }
-                else {
-                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
-                }
-                return;
-            }
-            // MSGSTATUS is sent by the client to the server and contains a Sensor Seal status update
-            case 21 /* PacketType.MSGSTATUS */: {
-                // check for duplicate packet ID in FIFO and ignore if found, otherwise add to FIFO
-                if (client.receivedMessageIDsFIFO.includes(parsedPacket.packetID)) {
-                    logIfSSGSDebug('Warning: Received duplicate MSGSTATUS packet ID ' + parsedPacket.packetID);
-                    // send RCPTOK to client to indicate that we received the packet
-                    this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
-                    return;
-                }
-                else {
-                    client.receivedMessageIDsFIFO.push(parsedPacket.packetID);
-                    if (client.receivedMessageIDsFIFO.length > RECV_MSG_FIFO_MAX_LEN) {
-                        client.receivedMessageIDsFIFO.shift(); // remove the oldest packet ID, shift left
-                    }
-                }
-                // send RCPTOK to client to indicate that we received the packet
-                this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
-                // try parse the measurements from a variety of SSGSCP payload formats
-                var sensorSealUpdateParams = SSProtocols.parse(parsedPacket.payload);
-                // call the onmessage callback function
-                var update = {
-                    gatewayUID: parsedPacket.gatewayUID,
-                    rawPayload: parsedPacket.payload,
-                    sensorSealUID: (_a = sensorSealUpdateParams.sensorSealUID) !== null && _a !== void 0 ? _a : null,
-                    temperature: (_b = sensorSealUpdateParams.temperature) !== null && _b !== void 0 ? _b : null,
-                    vibration: (_c = sensorSealUpdateParams.vibration) !== null && _c !== void 0 ? _c : null,
-                    rpm: (_d = sensorSealUpdateParams.rpm) !== null && _d !== void 0 ? _d : null,
-                    voltage: (_e = sensorSealUpdateParams.voltage) !== null && _e !== void 0 ? _e : null,
-                    msgID: (_f = sensorSealUpdateParams.msgID) !== null && _f !== void 0 ? _f : null,
-                };
-                client.onmessage(update);
-                return;
-            }
-            // outbound server->gateway packet types (should never be received by server)
-            case 20 /* PacketType.MSGCONF */: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
-                return;
-            }
-            case 2 /* PacketType.CONNACPT */: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
-                return;
-            }
-            case 3 /* PacketType.CONNFAIL */: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
-                return;
-            }
-            default: {
-                assert(false, 'Software Error: default clause in process() should never be reached');
-            }
-        }
+            });
+        });
     };
     /**
      * @method
@@ -428,6 +445,22 @@ var SSGS = /** @class */ (function () {
             var authorizedGateway = _a[_i];
             if (SSGS.gatewayUIDsMatch(authorizedGateway.gatewayUID, gatewayUID)) {
                 return authorizedGateway.key;
+            }
+        }
+        return null;
+    };
+    /**
+     * @method
+     * @param {Buffer} gatewayUID - the gateway UID to check
+     * @returns {Client | null} - the client object if the gateway UID is connected, null otherwise
+     * Checks if the gateway UID is connected and returns the client object if it is
+     */
+    SSGS.prototype.getClientByGatewayUID = function (gatewayUID) {
+        // TODO: optimize this using a binary search hash table
+        for (var _i = 0, _a = this.connectedClients; _i < _a.length; _i++) {
+            var client = _a[_i];
+            if (SSGS.gatewayUIDsMatch(client.gatewayUID, gatewayUID)) {
+                return client;
             }
         }
         return null;
