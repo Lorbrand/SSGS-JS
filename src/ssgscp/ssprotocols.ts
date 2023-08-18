@@ -56,6 +56,13 @@ function parseSSRB(parsedSSGSCP: ParsedSSGSCPPacket): SensorSealUpdate {
 
     const roundTo1dp = (num: number) => Math.round(num * 10) / 10;
 
+    const ssrbVersion = parsedSSGSCP.payload[offset];
+    offset += 1;
+
+    if (ssrbVersion < 2) {
+        return null;
+    }
+
     const sensorSealUID = parsedSSGSCP.payload.subarray(offset, offset + 4);
     offset += 4;
 

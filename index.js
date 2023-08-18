@@ -74,20 +74,23 @@ var SSGS = /** @class */ (function () {
      * @param {function} onmessage - the callback function to handle incoming messages
      * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
-    function SSGS(port, onconnection, configFilePath) {
+    function SSGS(port, onconnection, configFilePath, options) {
         if (port === void 0) { port = 1818; }
-        if (configFilePath === void 0) { configFilePath = './authorized.json'; }
         var _this = this;
         this.port = port;
         this.onconnection = onconnection;
         this.onconnectionattempt = function (gatewayUID, remoteAddress, port) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
             return [2 /*return*/, null];
         }); }); }; // default to rejecting all unauthorized gateways
-        this.configFilePath = configFilePath;
+        this.configFilePath = configFilePath !== null && configFilePath !== void 0 ? configFilePath : './authorized.json';
         this.socket = null;
         this.configFile = null;
         this.authorizedGateways = [];
         this.connectedClients = [];
+        if (options && options.debug) {
+            console.log('SSGS: Debug mode enabled');
+            __SSGS_DEBUG = true;
+        }
         this.begin();
     }
     /**
@@ -168,6 +171,7 @@ var SSGS = /** @class */ (function () {
             packetID: client.sendPacketID,
             payload: payload
         };
+        logIfSSGSDebug('Send to client: ' + JSON.stringify(packet));
         var packedPacket = SSGSCP.packSSGSCP(packet, client.key);
         if (!packedPacket) {
             logIfSSGSDebug('Error: Could not pack packet: ' + SSGSCP.errMsg);

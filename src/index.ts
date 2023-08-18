@@ -22,7 +22,7 @@
 
 */
 
-const __SSGS_DEBUG: boolean = false;
+let __SSGS_DEBUG: boolean = false;
 
 const RECV_MSG_FIFO_MAX_LEN = 100;
 const SENT_MSG_LIST_MAX_LEN = 100;
@@ -85,6 +85,10 @@ export type Client = { // the client state machine
     send: (payload: Buffer) => Promise<boolean>; // the function to send a CONF packet to the client
 }
 
+type ssgsOptions = {
+    debug?: boolean;
+};
+
 class SSGS {
     /**
      * @param {Client} client - the new authorized client that has connected
@@ -116,15 +120,21 @@ class SSGS {
      * @param {function} onmessage - the callback function to handle incoming messages
      * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
-    constructor(port: number = 1818, onconnection: (client: Client) => void, configFilePath: string = './authorized.json') {
+    constructor(port: number = 1818, onconnection: (client: Client) => void, configFilePath?: string, options?: ssgsOptions) {
         this.port = port;
         this.onconnection = onconnection;
         this.onconnectionattempt = async (gatewayUID, remoteAddress, port) => { return null; }; // default to rejecting all unauthorized gateways
-        this.configFilePath = configFilePath;
+        this.configFilePath = configFilePath ?? './authorized.json';
         this.socket = null;
         this.configFile = null;
         this.authorizedGateways = [];
         this.connectedClients = [];
+
+        if (options && options.debug) {
+            console.log('SSGS: Debug mode enabled');
+            __SSGS_DEBUG = true;
+        }
+
         this.begin();
     }
 
@@ -205,6 +215,8 @@ class SSGS {
             packetID: client.sendPacketID,
             payload
         };
+
+        logIfSSGSDebug('Send to client: ' + JSON.stringify(packet));
 
         const packedPacket = SSGSCP.packSSGSCP(packet, client.key);
         if (!packedPacket) {

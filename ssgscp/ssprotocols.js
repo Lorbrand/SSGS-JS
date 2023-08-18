@@ -17,6 +17,11 @@ function parseSSRB(parsedSSGSCP) {
     }
     var offset = 4;
     var roundTo1dp = function (num) { return Math.round(num * 10) / 10; };
+    var ssrbVersion = parsedSSGSCP.payload[offset];
+    offset += 1;
+    if (ssrbVersion < 2) {
+        return null;
+    }
     var sensorSealUID = parsedSSGSCP.payload.subarray(offset, offset + 4);
     offset += 4;
     var msgID = parsedSSGSCP.payload.readUInt32LE(offset);

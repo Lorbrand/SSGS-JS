@@ -46,6 +46,9 @@ export type Client = {
      */
     send: (payload: Buffer) => Promise<boolean>;
 };
+type ssgsOptions = {
+    debug?: boolean;
+};
 declare class SSGS {
     /**
      * @param {Client} client - the new authorized client that has connected
@@ -74,7 +77,7 @@ declare class SSGS {
      * @param {function} onmessage - the callback function to handle incoming messages
      * @param {string} configFilePath - the path to the SSGS configuration file, default is './authorized.json'
      */
-    constructor(port: number, onconnection: (client: Client) => void, configFilePath?: string);
+    constructor(port: number, onconnection: (client: Client) => void, configFilePath?: string, options?: ssgsOptions);
     /**
      * @method
      * @async
