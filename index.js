@@ -213,32 +213,35 @@ var SSGS = /** @class */ (function () {
      * Processes the incoming packet and calls the onmessage callback function
      */
     SSGS.prototype.process = function (datagram, rinfo) {
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function () {
-            var gatewayUID, callbackProvidedKey, key, parsedPacket, client, client_1, sentMessage, index, parsedMessage;
+            var gatewayUID, client, callbackProvidedKey, key, parsedPacket, client_1, sentMessage, index, parsedMessage;
             var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
+            return __generator(this, function (_c) {
+                switch (_c.label) {
                     case 0:
                         gatewayUID = SSGSCP.parsePacketGatewayUID(datagram);
                         if (!gatewayUID) {
                             logIfSSGSDebug('Error: Could not parse gateway UID from packet');
                             return [2 /*return*/];
                         }
+                        client = this.connectedClients.find(function (c) { return SSGS.gatewayUIDsMatch(c.gatewayUID, gatewayUID); });
                         callbackProvidedKey = null;
+                        if (!!client) return [3 /*break*/, 2];
                         if (!!this.isAuthorizedGateway(gatewayUID)) return [3 /*break*/, 2];
                         logIfSSGSDebug('Connecting gateway is not authorized in config, trying onconnectionattempt callback');
                         return [4 /*yield*/, this.onconnectionattempt(gatewayUID, rinfo.address, rinfo.port)];
                     case 1:
-                        callbackProvidedKey = _a.sent();
+                        callbackProvidedKey = _c.sent();
                         if (!callbackProvidedKey) {
                             logIfSSGSDebug('onconnectionattempt did not authorize gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
                             this.sendCONNFAIL(rinfo, gatewayUID);
                             return [2 /*return*/];
                         }
                         logIfSSGSDebug('onconnectionattempt authorized gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
-                        _a.label = 2;
+                        _c.label = 2;
                     case 2:
-                        key = this.getGatewayKey(gatewayUID) || callbackProvidedKey;
+                        key = (_b = (_a = this.getGatewayKey(gatewayUID)) !== null && _a !== void 0 ? _a : callbackProvidedKey) !== null && _b !== void 0 ? _b : client === null || client === void 0 ? void 0 : client.key;
                         if (!key) {
                             logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
                             return [2 /*return*/];
@@ -254,7 +257,6 @@ var SSGS = /** @class */ (function () {
                             this.sendCONNFAIL(rinfo, gatewayUID);
                             return [2 /*return*/];
                         }
-                        client = this.connectedClients.find(function (c) { return SSGS.gatewayUIDsMatch(c.gatewayUID, parsedPacket.gatewayUID); });
                         // if the client is not found, this is a new connection, so we need to add it to the connectedClients list
                         if (!client) {
                             if (parsedPacket.packetType === 1 /* PacketType.CONN */) {

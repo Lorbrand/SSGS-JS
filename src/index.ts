@@ -94,7 +94,7 @@ class SSGS {
      * @param {Client} client - the new authorized client that has connected
      * The callback function that is called when a new client (gateway) has connected and is authenticated
      */
-    onconnection: (client: Client) => void; 
+    onconnection: (client: Client) => void;
 
     /**
      * @param {Buffer} gatewayUID - the UID of the gateway
@@ -274,22 +274,27 @@ class SSGS {
             return;
         }
 
+        // try find the Client state machine for this gateway client (in connectedClients)
+        const client = this.connectedClients.find((c) => SSGS.gatewayUIDsMatch(c.gatewayUID, gatewayUID));
+
         let callbackProvidedKey: Buffer | null = null;
 
-        if (!this.isAuthorizedGateway(gatewayUID)) {
-            logIfSSGSDebug('Connecting gateway is not authorized in config, trying onconnectionattempt callback');
-            
-            callbackProvidedKey = await this.onconnectionattempt(gatewayUID, rinfo.address, rinfo.port);
-            if (!callbackProvidedKey) {
-                logIfSSGSDebug('onconnectionattempt did not authorize gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
-                this.sendCONNFAIL(rinfo, gatewayUID);
-                return;
+        if (!client) { // client not found, check if gateway is authorized
+            if (!this.isAuthorizedGateway(gatewayUID)) {
+                logIfSSGSDebug('Connecting gateway is not authorized in config, trying onconnectionattempt callback');
+
+                callbackProvidedKey = await this.onconnectionattempt(gatewayUID, rinfo.address, rinfo.port);
+                if (!callbackProvidedKey) {
+                    logIfSSGSDebug('onconnectionattempt did not authorize gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
+                    this.sendCONNFAIL(rinfo, gatewayUID);
+                    return;
+                }
+
+                logIfSSGSDebug('onconnectionattempt authorized gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
             }
-              
-            logIfSSGSDebug('onconnectionattempt authorized gateway UID: ' + SSGS.uidToString(gatewayUID) + ' from address: ' + rinfo.address);
         }
 
-        const key = this.getGatewayKey(gatewayUID) || callbackProvidedKey;
+        const key = this.getGatewayKey(gatewayUID) ?? callbackProvidedKey ?? client?.key;
         if (!key) {
             logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
             return;
@@ -309,8 +314,7 @@ class SSGS {
             return;
         }
 
-        // try find the Client state machine for this gateway client (in connectedClients)
-        const client = this.connectedClients.find((c) => SSGS.gatewayUIDsMatch(c.gatewayUID, parsedPacket.gatewayUID));
+
 
         // if the client is not found, this is a new connection, so we need to add it to the connectedClients list
         if (!client) {
