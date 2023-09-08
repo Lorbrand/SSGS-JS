@@ -58,7 +58,9 @@ export class SSGSCP {
             packet.payload = Buffer.alloc(0);
         }
 
-        const encryptedPortionPlaintext = Buffer.alloc(8 + packet.payload.length);
+        // we want it padded to 4 bytes
+        const encryptedPortionPlaintextUnpaddedLength = 8 + packet.payload.length;
+        const encryptedPortionPlaintext = Buffer.alloc(encryptedPortionPlaintextUnpaddedLength + (4 - encryptedPortionPlaintextUnpaddedLength % 4));
 
         // Packet Type
         encryptedPortionPlaintext.set([packet.packetType], 0);

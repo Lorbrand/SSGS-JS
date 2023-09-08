@@ -32,7 +32,9 @@ export var SSGSCP = /** @class */ (function () {
         if (!packet.payload) { // If no payload is provided, set it to an empty array
             packet.payload = Buffer.alloc(0);
         }
-        var encryptedPortionPlaintext = Buffer.alloc(8 + packet.payload.length);
+        // we want it padded to 4 bytes
+        var encryptedPortionPlaintextUnpaddedLength = 8 + packet.payload.length;
+        var encryptedPortionPlaintext = Buffer.alloc(encryptedPortionPlaintextUnpaddedLength + (4 - encryptedPortionPlaintextUnpaddedLength % 4));
         // Packet Type
         encryptedPortionPlaintext.set([packet.packetType], 0);
         // Encryption Authentication Code
