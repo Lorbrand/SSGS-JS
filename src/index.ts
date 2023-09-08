@@ -380,18 +380,20 @@ class SSGS {
                 // packet we sent was received correctly by the client, so we can remove it from the sentMessages list
                 const sentMessage = client.sentMessages.find((m) => m.packetID === parsedPacket.packetID);
 
+                if (!sentMessage) {
+                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
+                    return;
+                }
+
                 // resolve the promise that was returned by the sendMSG function
                 sentMessage.resolve(true);
 
                 // set the receivedOk flag to true
                 sentMessage.receivedOk = true;
 
-                if (sentMessage) {
-                    const index = client.sentMessages.indexOf(sentMessage);
-                    client.sentMessages.splice(index, 1);
-                } else {
-                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
-                }
+                const index = client.sentMessages.indexOf(sentMessage);
+                client.sentMessages.splice(index, 1);
+
 
                 return;
             }

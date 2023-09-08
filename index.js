@@ -316,17 +316,16 @@ var SSGS = /** @class */ (function () {
                             // RCPTOK is sent by the client or server to indicate that a packet was received correctly
                             case 10 /* PacketType.RCPTOK */: {
                                 sentMessage = client.sentMessages.find(function (m) { return m.packetID === parsedPacket.packetID; });
+                                if (!sentMessage) {
+                                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
+                                    return [2 /*return*/];
+                                }
                                 // resolve the promise that was returned by the sendMSG function
                                 sentMessage.resolve(true);
                                 // set the receivedOk flag to true
                                 sentMessage.receivedOk = true;
-                                if (sentMessage) {
-                                    index = client.sentMessages.indexOf(sentMessage);
-                                    client.sentMessages.splice(index, 1);
-                                }
-                                else {
-                                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
-                                }
+                                index = client.sentMessages.indexOf(sentMessage);
+                                client.sentMessages.splice(index, 1);
                                 return [2 /*return*/];
                             }
                             // MSGSTATUS is sent by the client to the server 
