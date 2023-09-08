@@ -347,7 +347,7 @@ var SSGS = /** @class */ (function () {
                                 this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
                                 parsedMessage = SSProtocols.parse(parsedPacket);
                                 if (!parsedMessage) {
-                                    logIfSSGSDebug('Error: Could not parse message');
+                                    logIfSSGSDebug('Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
                                     return [2 /*return*/];
                                 }
                                 client.onmessage(parsedMessage);

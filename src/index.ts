@@ -422,7 +422,7 @@ class SSGS {
                 const parsedMessage = SSProtocols.parse(parsedPacket);
 
                 if (!parsedMessage) {
-                    logIfSSGSDebug('Error: Could not parse message');
+                    logIfSSGSDebug('Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
                     return;
                 }
 
