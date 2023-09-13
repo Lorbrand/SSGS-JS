@@ -28,6 +28,7 @@ const RECV_MSG_FIFO_MAX_LEN = 100;
 const SENT_MSG_LIST_MAX_LEN = 100;
 const RETRANSMISSION_COUNT_MAX = 10;
 const RETRANSMISSION_TIMEOUT_MS = 2000;
+const LAST_SEEN_TIMEOUT_MS = 30000; // if a client has not been seen for this long, it is removed from the connectedClients list
 
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
@@ -36,7 +37,7 @@ import { SSGSCP } from './ssgscp/ssgscp.js';
 import { ParsedSSGSCPPacket } from './ssgscp/ssgscp.js';
 import { PacketType } from './ssgscp/ssgscp.js';
 
-import { MessageSubtype } from './ssgscp/ssprotocols.js';
+import { MessageSubtype } from './ssgscp/ssgscp.js';
 import { SensorSealUpdate } from './ssgscp/ssprotocols.js';
 import { ParsedMessage } from './ssgscp/ssprotocols.js';
 import SSProtocols from './ssgscp/ssprotocols.js';
@@ -194,6 +195,14 @@ class SSGS {
                     retransmittedCount++;
                 }
             }
+
+            // remove the client if it has not been seen for LAST_SEEN_TIMEOUT_MS
+            if (now - client.lastSeen > LAST_SEEN_TIMEOUT_MS) {
+                const index = this.connectedClients.indexOf(client);
+                this.connectedClients.splice(index, 1);
+                logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to inactivity');
+            }
+
         }
 
     }
@@ -425,6 +434,17 @@ class SSGS {
                     logIfSSGSDebug('Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
                     return;
                 }
+
+                // see if its a PING_PONG packet, if so, send a PING_PONG back with the same u8 sequence number in the payload
+                if (parsedMessage.messageType === MessageSubtype.PING_PONG) {
+                    const pingPongSequenceNumber = parsedMessage.data as number;
+                    const payload = Buffer.alloc(2);
+                    payload.writeUInt8(MessageSubtype.PING_PONG, 0);
+                    payload.writeUInt8(pingPongSequenceNumber, 1);
+                    client.send(payload);
+                    return;
+                }
+                
 
                 client.onmessage(parsedMessage);
 

@@ -1,4 +1,3 @@
-;
 function buffersEqual(a, b) {
     if (a.length !== b.length) {
         return false;
@@ -60,6 +59,16 @@ var SSProtocols = {
                     rawPayload: parsedSSGSCP.payload,
                     data: ssrbUpdate,
                     messageType: ssrbUpdate ? 83 /* MessageSubtype.SSRB_UPDATE */ : 0 /* MessageSubtype.INVALID */
+                };
+            case 1 /* MessageSubtype.PING_PONG */:
+                if (parsedSSGSCP.payload.length < 2) {
+                    return null;
+                }
+                return {
+                    gatewayUID: parsedSSGSCP.gatewayUID,
+                    rawPayload: parsedSSGSCP.payload,
+                    data: parsedSSGSCP.payload[1],
+                    messageType: 1 /* MessageSubtype.PING_PONG */
                 };
         }
         return null;

@@ -62,6 +62,7 @@ var RECV_MSG_FIFO_MAX_LEN = 100;
 var SENT_MSG_LIST_MAX_LEN = 100;
 var RETRANSMISSION_COUNT_MAX = 10;
 var RETRANSMISSION_TIMEOUT_MS = 2000;
+var LAST_SEEN_TIMEOUT_MS = 30000; // if a client has not been seen for this long, it is removed from the connectedClients list
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
 import { SSGSCP } from './ssgscp/ssgscp.js';
@@ -153,6 +154,12 @@ var SSGS = /** @class */ (function () {
                     retransmittedCount++;
                 }
             }
+            // remove the client if it has not been seen for LAST_SEEN_TIMEOUT_MS
+            if (now - client.lastSeen > LAST_SEEN_TIMEOUT_MS) {
+                var index = this.connectedClients.indexOf(client);
+                this.connectedClients.splice(index, 1);
+                logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to inactivity');
+            }
         }
     };
     /**
@@ -215,7 +222,7 @@ var SSGS = /** @class */ (function () {
     SSGS.prototype.process = function (datagram, rinfo) {
         var _a, _b;
         return __awaiter(this, void 0, void 0, function () {
-            var gatewayUID, client, callbackProvidedKey, key, parsedPacket, client_1, sentMessage, index, parsedMessage;
+            var gatewayUID, client, callbackProvidedKey, key, parsedPacket, client_1, sentMessage, index, parsedMessage, pingPongSequenceNumber, payload;
             var _this = this;
             return __generator(this, function (_c) {
                 switch (_c.label) {
@@ -348,6 +355,15 @@ var SSGS = /** @class */ (function () {
                                 parsedMessage = SSProtocols.parse(parsedPacket);
                                 if (!parsedMessage) {
                                     logIfSSGSDebug('Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
+                                    return [2 /*return*/];
+                                }
+                                // see if its a PING_PONG packet, if so, send a PING_PONG back with the same u8 sequence number in the payload
+                                if (parsedMessage.messageType === 1 /* MessageSubtype.PING_PONG */) {
+                                    pingPongSequenceNumber = parsedMessage.data;
+                                    payload = Buffer.alloc(2);
+                                    payload.writeUInt8(1 /* MessageSubtype.PING_PONG */, 0);
+                                    payload.writeUInt8(pingPongSequenceNumber, 1);
+                                    client.send(payload);
                                     return [2 /*return*/];
                                 }
                                 client.onmessage(parsedMessage);

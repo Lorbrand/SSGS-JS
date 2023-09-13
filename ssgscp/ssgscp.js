@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto';
 ;
+;
 /**
  * This class defines various static methods for parsing and constructing
  * SSGSCP packets

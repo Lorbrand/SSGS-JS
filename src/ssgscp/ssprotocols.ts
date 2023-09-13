@@ -1,19 +1,5 @@
 import { ParsedSSGSCPPacket } from "./ssgscp";
-
-// Define the SSGSCP MSG subtypes
-export const enum MessageSubtype {
-    // Invalid message type
-    INVALID = 0x00,
-
-    // <Gateway Manager Web Client> -> Server -> Gateway. (Server -> Gateway is a MSGCONF message)
-    SET_GATEWAY_CONFIG = 0x01, // A message from the web client to the gateway to set the gateway's configuration (e.g.)
-    REMOTE_TERMINAL_INPUT = 0x02, // A message from the web client+server to the gateway to be processed by the gateway's remote terminal service
-
-    // Gateway -> Server -> <Gateway Manager Web Client> (Gateway -> Server is a MSGSTATUS message)
-    REMOTE_TERMINAL_OUTPUT = 0x03, // A message from the gateway's remote terminal service to the web client
-    SSRB_UPDATE = 0x53, // A message from the gateway to the server containing an SSRB update from a Sensor Seal
-
-};
+import { MessageSubtype } from "./ssgscp";
 
 export type SensorSealUpdate = {
     sensorSealUID: Buffer; // the UID of the sensor seal that sent the update
@@ -28,7 +14,7 @@ export type SensorSealUpdate = {
 export type ParsedMessage = {
     gatewayUID: Buffer; // the UID of the gateway that sent the update
     rawPayload: Buffer; // the raw payload contents of the SSGSCP packet
-    data: SensorSealUpdate | string; // the parsed data
+    data: SensorSealUpdate | string | number; // the parsed data
     messageType: MessageSubtype; // the type of message
 };
 
@@ -113,6 +99,18 @@ const SSProtocols = {
                     data: ssrbUpdate,
                     messageType: ssrbUpdate ? MessageSubtype.SSRB_UPDATE : MessageSubtype.INVALID
                 };
+            case MessageSubtype.PING_PONG:
+                if (parsedSSGSCP.payload.length < 2) {
+                    return null;
+                }
+                return {
+                    gatewayUID: parsedSSGSCP.gatewayUID,
+                    rawPayload: parsedSSGSCP.payload,
+                    data: parsedSSGSCP.payload[1],
+                    messageType: MessageSubtype.PING_PONG
+                };
+
+                    
 
         }
 

@@ -2,7 +2,7 @@
 /// <reference types="node" />
 import * as dgram from 'node:dgram';
 import { PacketType } from './ssgscp/ssgscp.js';
-import { MessageSubtype } from './ssgscp/ssprotocols.js';
+import { MessageSubtype } from './ssgscp/ssgscp.js';
 import { SensorSealUpdate } from './ssgscp/ssprotocols.js';
 import { ParsedMessage } from './ssgscp/ssprotocols.js';
 type ConfigFile = {

@@ -11,6 +11,25 @@ export const enum PacketType {
     MSGSTATUS = 21, // a sensor seal status update (gateway to server)
 };
 
+// Define the SSGSCP MSG subtypes
+export const enum MessageSubtype {
+    INVALID = 0x00,
+
+    PING_PONG = 0x01, // A message to the server from the gateway back to the server to test the connection. Payload is an incremented sequence number, u8.
+    REMOTE_TERMINAL_INPUT = 0x02, // A message to the gateway to be processed by the gateway's remote terminal service
+    GATEWAY_RESTART = 0x03, 
+    SET_RADIO_PARAMS = 0x04, // A message to the gateway to set the gateway's radio parameters
+    SEND_PACKET = 0x05, // A message to the gateway to send a packet
+    RESET_RADIO_PARAMS = 0x06, // A message to the gateway to reset the gateway's radio parameters to their default values
+    WFU_PACKET = 0x07, // A message to the gateway to send a WFU packet: u16 FW Version, u16 total num FW blocks, u8 this num FW blocks, blocks [ { u16 block num, u8[32] block data } ... ]
+
+    // Gateway -> Server
+    REMOTE_TERMINAL_OUTPUT = 0x03, // A message from the gateway's remote terminal service to the web client
+    SSRB_UPDATE = 0x53, // A message from the gateway to the server containing an SSRB update from a Sensor Seal
+};
+
+
+
 // Define the SSGSCP packet fields
 export type ParsedSSGSCPPacket = {
     authSuccess?: true | false, // true if the encryption authentication code is valid ([0, 1, 2, 3]), false if not

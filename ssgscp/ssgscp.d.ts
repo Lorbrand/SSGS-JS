@@ -7,6 +7,18 @@ export declare const enum PacketType {
     MSGCONF = 20,
     MSGSTATUS = 21
 }
+export declare const enum MessageSubtype {
+    INVALID = 0,
+    PING_PONG = 1,
+    REMOTE_TERMINAL_INPUT = 2,
+    GATEWAY_RESTART = 3,
+    SET_RADIO_PARAMS = 4,
+    SEND_PACKET = 5,
+    RESET_RADIO_PARAMS = 6,
+    WFU_PACKET = 7,
+    REMOTE_TERMINAL_OUTPUT = 3,
+    SSRB_UPDATE = 83
+}
 export type ParsedSSGSCPPacket = {
     authSuccess?: true | false;
     packetType?: PacketType;
