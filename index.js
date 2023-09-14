@@ -158,6 +158,8 @@ var SSGS = /** @class */ (function () {
             if (now - client.lastSeen > LAST_SEEN_TIMEOUT_MS) {
                 var index = this.connectedClients.indexOf(client);
                 this.connectedClients.splice(index, 1);
+                client.connected = false;
+                client.ondisconnect();
                 logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to inactivity');
             }
         }
@@ -273,6 +275,7 @@ var SSGS = /** @class */ (function () {
                                     sourcePort: rinfo.port,
                                     remoteAddress: rinfo.address,
                                     lastSeen: Date.now(),
+                                    connected: true,
                                     sendPacketID: 0,
                                     retransmissionTimeout: RETRANSMISSION_TIMEOUT_MS,
                                     sentMessages: [],
@@ -281,6 +284,7 @@ var SSGS = /** @class */ (function () {
                                     onmessage: function (parsedMessage) { },
                                     onupdate: function (parsedUpdate) { },
                                     onreconnect: function () { },
+                                    ondisconnect: function () { },
                                     send: function (payload) { return __awaiter(_this, void 0, void 0, function () {
                                         return __generator(this, function (_a) {
                                             switch (_a.label) {

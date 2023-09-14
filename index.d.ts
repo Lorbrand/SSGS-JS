@@ -29,6 +29,7 @@ export type Client = {
     sourcePort: number;
     remoteAddress: string;
     lastSeen: number;
+    connected: boolean;
     sendPacketID: number;
     retransmissionTimeout: number;
     sentMessages: Array<SentMessage>;
@@ -37,6 +38,7 @@ export type Client = {
     onmessage: (update: ParsedMessage) => void;
     onupdate: (update: SensorSealUpdate) => void;
     onreconnect: () => void;
+    ondisconnect: () => void;
     /**
      * @method
      * @param {Buffer} payload - the payload to send to the client

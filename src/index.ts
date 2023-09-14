@@ -68,6 +68,7 @@ export type Client = { // the client state machine
     sourcePort: number; // the UDP port number the client is sending from (ephemeral port)
     remoteAddress: string; // the IP address of the client
     lastSeen: number; // the timestamp of the last time the client sent a message
+    connected: boolean; // whether the client is connected and authenticated
     sendPacketID: number; // the packet ID of the next message to send to the client
     retransmissionTimeout: number; // the retransmission timeout in milliseconds
     sentMessages: Array<SentMessage>; // the list of sent messages
@@ -76,6 +77,7 @@ export type Client = { // the client state machine
     onmessage: (update: ParsedMessage) => void; // the callback function to handle incoming messages from the gateway
     onupdate: (update: SensorSealUpdate) => void; // the callback function to handle incoming Sensor Seal updates
     onreconnect: () => void; // the callback function to handle a client reconnecting
+    ondisconnect: () => void; // the callback function to handle a client disconnecting
     /**
      * @method
      * @param {Buffer} payload - the payload to send to the client
@@ -200,6 +202,8 @@ class SSGS {
             if (now - client.lastSeen > LAST_SEEN_TIMEOUT_MS) {
                 const index = this.connectedClients.indexOf(client);
                 this.connectedClients.splice(index, 1);
+                client.connected = false;
+                client.ondisconnect();
                 logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to inactivity');
             }
 
@@ -334,6 +338,7 @@ class SSGS {
                     sourcePort: rinfo.port,
                     remoteAddress: rinfo.address,
                     lastSeen: Date.now(),
+                    connected: true,
                     sendPacketID: 0,
                     retransmissionTimeout: RETRANSMISSION_TIMEOUT_MS,
                     sentMessages: [],
@@ -342,6 +347,7 @@ class SSGS {
                     onmessage: (parsedMessage: ParsedMessage) => { },
                     onupdate: (parsedUpdate: SensorSealUpdate) => { },
                     onreconnect: () => { },
+                    ondisconnect: () => { },
                     send: async (payload: Buffer) => {
                         return await this.sendMSG(client, PacketType.MSGCONF, payload);
                     }
