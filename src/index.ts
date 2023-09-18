@@ -307,27 +307,27 @@ class SSGS {
             }
         }
 
+        // first try get the key from the config file, if not found, try get it from the callback, if not found, try get it from the client object (if it exists)
         const key = this.getGatewayKey(gatewayUID) ?? callbackProvidedKey ?? client?.key;
         if (!key) {
             logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
             return;
         }
 
+        // try parse the packet using the key
         const parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
 
-        if (!parsedPacket) { // could not parse due to authentication error or other reason
+        if (!parsedPacket) { // could not parse the packet
             logIfSSGSDebug('Error: Could not parse packet: ' + SSGSCP.errMsg);
             this.sendCONNFAIL(rinfo, gatewayUID);
             return;
         }
 
-        if (!parsedPacket.authSuccess) {
+        if (!parsedPacket.authSuccess) { // could not authenticate the packet using the key (invalid Message Authentication Code)
             logIfSSGSDebug('Error: Could not authenticate gateway');
             this.sendCONNFAIL(rinfo, gatewayUID);
             return;
         }
-
-
 
         // if the client is not found, this is a new connection, so we need to add it to the connectedClients list
         if (!client) {
@@ -354,7 +354,6 @@ class SSGS {
                 };
 
                 this.connectedClients.push(client);
-
                 this.onconnection(client);
                 return;
             } else {

@@ -34,7 +34,9 @@ function buffersEqual(a, b) {
 
 function parseSSRB(parsedSSGSCP: ParsedSSGSCPPacket): SensorSealUpdate {
     // check if the packet is an SSRB packet
-    if (!buffersEqual(parsedSSGSCP.payload.subarray(0, 4), [0x53, 0x53, 0x52, 0x42])) {
+    const messageData = parsedSSGSCP.payload.subarray(1);
+
+    if (!buffersEqual(messageData.subarray(0, 4), [0x53, 0x53, 0x52, 0x42])) {
         return null;
     }
 
@@ -42,29 +44,29 @@ function parseSSRB(parsedSSGSCP: ParsedSSGSCPPacket): SensorSealUpdate {
 
     const roundTo1dp = (num: number) => Math.round(num * 10) / 10;
 
-    const ssrbVersion = parsedSSGSCP.payload[offset];
+    const ssrbVersion = messageData[offset];
     offset += 1;
 
     if (ssrbVersion < 2) {
         return null;
     }
 
-    const sensorSealUID = parsedSSGSCP.payload.subarray(offset, offset + 4);
+    const sensorSealUID = messageData.subarray(offset, offset + 4);
     offset += 4;
 
-    const msgID = parsedSSGSCP.payload.readUInt32LE(offset);
+    const msgID = messageData.readUInt32LE(offset);
     offset += 4;
 
-    const temperature = roundTo1dp(parsedSSGSCP.payload.readFloatLE(offset));
+    const temperature = roundTo1dp(messageData.readFloatLE(offset));
     offset += 4;
 
-    const rpm = roundTo1dp(parsedSSGSCP.payload.readFloatLE(offset));
+    const rpm = roundTo1dp(messageData.readFloatLE(offset));
     offset += 4;
 
-    const vibration = parsedSSGSCP.payload.readUInt32LE(offset);
+    const vibration = messageData.readUInt32LE(offset);
     offset += 4;
 
-    const voltage = parsedSSGSCP.payload.readUInt32LE(offset);
+    const voltage = messageData.readUInt32LE(offset);
 
     return <SensorSealUpdate>{
         sensorSealUID,
@@ -82,12 +84,15 @@ const SSProtocols = {
 
     parse: function (parsedSSGSCP: ParsedSSGSCPPacket): ParsedMessage {
 
+        const messageSubtype = parsedSSGSCP.payload[0];
+        const messageData = parsedSSGSCP.payload.subarray(1);
+
         switch (parsedSSGSCP.payload[0]) {
             case MessageSubtype.REMOTE_TERMINAL_OUTPUT:
                 return {
                     gatewayUID: parsedSSGSCP.gatewayUID,
                     rawPayload: parsedSSGSCP.payload,
-                    data: parsedSSGSCP.payload.subarray(1).toString(),
+                    data: messageData.toString(),
                     messageType: MessageSubtype.REMOTE_TERMINAL_OUTPUT
                 };
 

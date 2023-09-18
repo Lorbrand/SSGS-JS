@@ -256,12 +256,12 @@ var SSGS = /** @class */ (function () {
                             return [2 /*return*/];
                         }
                         parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
-                        if (!parsedPacket) { // could not parse due to authentication error or other reason
+                        if (!parsedPacket) { // could not parse the packet
                             logIfSSGSDebug('Error: Could not parse packet: ' + SSGSCP.errMsg);
                             this.sendCONNFAIL(rinfo, gatewayUID);
                             return [2 /*return*/];
                         }
-                        if (!parsedPacket.authSuccess) {
+                        if (!parsedPacket.authSuccess) { // could not authenticate the packet using the key (invalid Message Authentication Code)
                             logIfSSGSDebug('Error: Could not authenticate gateway');
                             this.sendCONNFAIL(rinfo, gatewayUID);
                             return [2 /*return*/];

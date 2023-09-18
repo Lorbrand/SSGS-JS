@@ -11,27 +11,28 @@ function buffersEqual(a, b) {
 }
 function parseSSRB(parsedSSGSCP) {
     // check if the packet is an SSRB packet
-    if (!buffersEqual(parsedSSGSCP.payload.subarray(0, 4), [0x53, 0x53, 0x52, 0x42])) {
+    var messageData = parsedSSGSCP.payload.subarray(1);
+    if (!buffersEqual(messageData.subarray(0, 4), [0x53, 0x53, 0x52, 0x42])) {
         return null;
     }
     var offset = 4;
     var roundTo1dp = function (num) { return Math.round(num * 10) / 10; };
-    var ssrbVersion = parsedSSGSCP.payload[offset];
+    var ssrbVersion = messageData[offset];
     offset += 1;
     if (ssrbVersion < 2) {
         return null;
     }
-    var sensorSealUID = parsedSSGSCP.payload.subarray(offset, offset + 4);
+    var sensorSealUID = messageData.subarray(offset, offset + 4);
     offset += 4;
-    var msgID = parsedSSGSCP.payload.readUInt32LE(offset);
+    var msgID = messageData.readUInt32LE(offset);
     offset += 4;
-    var temperature = roundTo1dp(parsedSSGSCP.payload.readFloatLE(offset));
+    var temperature = roundTo1dp(messageData.readFloatLE(offset));
     offset += 4;
-    var rpm = roundTo1dp(parsedSSGSCP.payload.readFloatLE(offset));
+    var rpm = roundTo1dp(messageData.readFloatLE(offset));
     offset += 4;
-    var vibration = parsedSSGSCP.payload.readUInt32LE(offset);
+    var vibration = messageData.readUInt32LE(offset);
     offset += 4;
-    var voltage = parsedSSGSCP.payload.readUInt32LE(offset);
+    var voltage = messageData.readUInt32LE(offset);
     return {
         sensorSealUID: sensorSealUID,
         viaGatewayUID: parsedSSGSCP.gatewayUID,
@@ -44,12 +45,14 @@ function parseSSRB(parsedSSGSCP) {
 }
 var SSProtocols = {
     parse: function (parsedSSGSCP) {
+        var messageSubtype = parsedSSGSCP.payload[0];
+        var messageData = parsedSSGSCP.payload.subarray(1);
         switch (parsedSSGSCP.payload[0]) {
             case 3 /* MessageSubtype.REMOTE_TERMINAL_OUTPUT */:
                 return {
                     gatewayUID: parsedSSGSCP.gatewayUID,
                     rawPayload: parsedSSGSCP.payload,
-                    data: parsedSSGSCP.payload.subarray(1).toString(),
+                    data: messageData.toString(),
                     messageType: 3 /* MessageSubtype.REMOTE_TERMINAL_OUTPUT */
                 };
             case 83 /* MessageSubtype.SSRB_UPDATE */:
