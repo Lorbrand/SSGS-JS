@@ -87,7 +87,7 @@ const SSProtocols = {
         const messageSubtype = parsedSSGSCP.payload[0];
         const messageData = parsedSSGSCP.payload.subarray(1);
 
-        switch (parsedSSGSCP.payload[0]) {
+        switch (messageSubtype) {
             case MessageSubtype.REMOTE_TERMINAL_OUTPUT:
                 return {
                     gatewayUID: parsedSSGSCP.gatewayUID,

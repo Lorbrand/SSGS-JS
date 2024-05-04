@@ -47,7 +47,7 @@ var SSProtocols = {
     parse: function (parsedSSGSCP) {
         var messageSubtype = parsedSSGSCP.payload[0];
         var messageData = parsedSSGSCP.payload.subarray(1);
-        switch (parsedSSGSCP.payload[0]) {
+        switch (messageSubtype) {
             case 3 /* MessageSubtype.REMOTE_TERMINAL_OUTPUT */:
                 return {
                     gatewayUID: parsedSSGSCP.gatewayUID,

@@ -318,13 +318,13 @@ class SSGS {
         const parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
 
         if (!parsedPacket) { // could not parse the packet
-            logIfSSGSDebug('Error: Could not parse packet: ' + SSGSCP.errMsg);
+            logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Could not parse packet: ' + SSGSCP.errMsg);
             this.sendCONNFAIL(rinfo, gatewayUID);
             return;
         }
 
         if (!parsedPacket.authSuccess) { // could not authenticate the packet using the key (invalid Message Authentication Code)
-            logIfSSGSDebug('Error: Could not authenticate gateway');
+            logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Could not authenticate gateway');
             this.sendCONNFAIL(rinfo, gatewayUID);
             return;
         }
@@ -357,7 +357,7 @@ class SSGS {
                 this.onconnection(client);
                 return;
             } else {
-                logIfSSGSDebug('Error: Client not found in connectedClients and packet type is not CONN');
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Client not found in connectedClients and packet type is not CONN');
                 this.sendCONNFAIL(rinfo, parsedPacket.gatewayUID);
                 return;
             }
@@ -377,7 +377,7 @@ class SSGS {
                 client.remoteAddress = rinfo.address;
                 client.sourcePort = rinfo.port;
 
-                logIfSSGSDebug('Warning: Received CONN packet from already connected client, assuming client restarted');
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Warning: Received CONN packet from already connected client, assuming client restarted');
 
                 // send CONNACPT to client to indicate that we received the packet
                 this.sendCONNACPT(rinfo, Buffer.from(key), parsedPacket.gatewayUID);
@@ -395,7 +395,7 @@ class SSGS {
                 const sentMessage = client.sentMessages.find((m) => m.packetID === parsedPacket.packetID);
 
                 if (!sentMessage) {
-                    logIfSSGSDebug('Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
+                    logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Warning: Received RCPTOK for packet ID ' + parsedPacket.packetID + ' but could not find it in sentMessages');
                     return;
                 }
 
@@ -408,6 +408,8 @@ class SSGS {
                 const index = client.sentMessages.indexOf(sentMessage);
                 client.sentMessages.splice(index, 1);
 
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Received RCPTOK for packet ID ' + parsedPacket.packetID + ', num pending: ' + client.sentMessages.length);
+
 
                 return;
             }
@@ -416,7 +418,7 @@ class SSGS {
             case PacketType.MSGSTATUS: {
                 // check for duplicate packet ID in FIFO and ignore if found, otherwise add to FIFO
                 if (client.receivedMessageIDsFIFO.includes(parsedPacket.packetID)) {
-                    logIfSSGSDebug('Warning: Received duplicate MSGSTATUS packet ID ' + parsedPacket.packetID);
+                    logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Warning: Received duplicate MSGSTATUS packet ID ' + parsedPacket.packetID);
 
                     // send RCPTOK to client to indicate that we received the packet
                     this.sendRCPTOK(parsedPacket.packetID, rinfo, Buffer.from(key), parsedPacket.gatewayUID);
@@ -436,12 +438,13 @@ class SSGS {
                 const parsedMessage = SSProtocols.parse(parsedPacket);
 
                 if (!parsedMessage) {
-                    logIfSSGSDebug('Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
+                    logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Could not parse message: ' + parsedPacket.payload.subarray(0, 100).toString('hex'));
                     return;
                 }
 
                 // see if its a PING_PONG packet, if so, send a PING_PONG back with the same u8 sequence number in the payload
                 if (parsedMessage.messageType === MessageSubtype.PING_PONG) {
+                    logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Received ping request from gateway ' + SSGS.uidToString(parsedPacket.gatewayUID));
                     const pingPongSequenceNumber = parsedMessage.data as number;
                     const payload = Buffer.alloc(2);
                     payload.writeUInt8(MessageSubtype.PING_PONG, 0);
@@ -450,7 +453,7 @@ class SSGS {
                     return;
                 }
                 
-
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Received message: ' + JSON.stringify(parsedMessage) + ' from gateway ' + SSGS.uidToString(parsedPacket.gatewayUID));
                 client.onmessage(parsedMessage);
 
                 if (parsedMessage.messageType === MessageSubtype.SSRB_UPDATE) {
@@ -463,15 +466,15 @@ class SSGS {
 
             // outbound server->gateway packet types (should never be received by server)
             case PacketType.MSGCONF: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Server received outbound server packet: ' + parsedPacket.packetType);
                 return;
             }
             case PacketType.CONNACPT: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Server received outbound server packet: ' + parsedPacket.packetType);
                 return;
             }
             case PacketType.CONNFAIL: {
-                logIfSSGSDebug('Error: Server received outbound server packet: ' + parsedPacket.packetType);
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Server received outbound server packet: ' + parsedPacket.packetType);
                 return;
             }
             default: {
