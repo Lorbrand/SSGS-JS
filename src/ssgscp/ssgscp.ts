@@ -25,6 +25,7 @@ export const enum MessageSubtype {
 
     // Gateway -> Server
     REMOTE_TERMINAL_OUTPUT = 0x03, // A message from the gateway's remote terminal service to the web client
+    WAKEUP_SCAN = 0x04, // A message from the gateway to the server containing a wakeup scan result
     SSRB_UPDATE = 0x53, // A message from the gateway to the server containing an SSRB update from a Sensor Seal
 };
 

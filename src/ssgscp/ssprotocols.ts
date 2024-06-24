@@ -14,7 +14,7 @@ export type SensorSealUpdate = {
 export type ParsedMessage = {
     gatewayUID: Buffer; // the UID of the gateway that sent the update
     rawPayload: Buffer; // the raw payload contents of the SSGSCP packet
-    data: SensorSealUpdate | string | number; // the parsed data
+    data: SensorSealUpdate | string | number | null; // the parsed data
     messageType: MessageSubtype; // the type of message
 };
 
@@ -115,7 +115,14 @@ const SSProtocols = {
                     messageType: MessageSubtype.PING_PONG
                 };
 
-                    
+            case MessageSubtype.WAKEUP_SCAN:
+                return {
+                    gatewayUID: parsedSSGSCP.gatewayUID,
+                    rawPayload: parsedSSGSCP.payload,
+                    data: null,
+                    messageType: MessageSubtype.WAKEUP_SCAN
+                };
+                
 
         }
 

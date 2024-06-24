@@ -13,7 +13,7 @@ export type SensorSealUpdate = {
 export type ParsedMessage = {
     gatewayUID: Buffer;
     rawPayload: Buffer;
-    data: SensorSealUpdate | string | number;
+    data: SensorSealUpdate | string | number | null;
     messageType: MessageSubtype;
 };
 declare const SSProtocols: {

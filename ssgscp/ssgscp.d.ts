@@ -17,6 +17,7 @@ export declare const enum MessageSubtype {
     RESET_RADIO_PARAMS = 6,
     WFU_PACKET = 7,
     REMOTE_TERMINAL_OUTPUT = 3,
+    WAKEUP_SCAN = 4,
     SSRB_UPDATE = 83
 }
 export type ParsedSSGSCPPacket = {

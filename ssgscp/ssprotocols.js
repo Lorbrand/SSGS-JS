@@ -73,6 +73,13 @@ var SSProtocols = {
                     data: parsedSSGSCP.payload[1],
                     messageType: 1 /* MessageSubtype.PING_PONG */
                 };
+            case 4 /* MessageSubtype.WAKEUP_SCAN */:
+                return {
+                    gatewayUID: parsedSSGSCP.gatewayUID,
+                    rawPayload: parsedSSGSCP.payload,
+                    data: null,
+                    messageType: 4 /* MessageSubtype.WAKEUP_SCAN */
+                };
         }
         return null;
     }
