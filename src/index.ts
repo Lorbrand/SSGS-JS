@@ -365,6 +365,8 @@ class SSGS {
 
         client.lastSeen = Date.now();
 
+        logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Received packet: ' + JSON.stringify(parsedPacket));
+
         switch (parsedPacket.packetType) {
             // CONNACPT is sent by the server to the client to indicate that the CONN packet was received
             case PacketType.CONN: {
