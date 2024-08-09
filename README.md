@@ -1,9 +1,13 @@
 # Sensor Seal Gateway Server
 The Sensor Seal Gateway Server (SSGS) Node.js Module allows you to create a customized Sensor Seal Gateway Server that can perform customized processing of Sensor Seal measurements.
 
+## Protocols
+- [x] SSGSCP: Supported
+- [ ] WebSocket Secure (WSS): Future support planned
+
 ## Installing
-Ensure you have Node.js version 14 or later installed and then follow the steps below:
-1. Create a package
+Ensure you have Node.js (preferred) or Deno installed and then follow the steps below:
+1. Navgate to a new folder and create a new package for your server
    ```
    npm init
    ```
@@ -13,17 +17,17 @@ Ensure you have Node.js version 14 or later installed and then follow the steps 
    npm pkg set type="module"
    ```
 
-5. Install SSGS
+5. Install Lorbrand SSGS
    ```
    npm i ssgs
    ```
 
 ## Basic Usage Example
-Import the SSGS module and use it as follows:
+Create an index.js or index.ts file, import the SSGS module, and use it as follows:
 ```typescript
 import SSGS from 'ssgs';
 
-// Create a new Sensor Seal Gateway Server that listens on UDP port 1818
+// Create a new Sensor Seal Gateway Server that listens on UDP port 1818 (SSGSCP)
 const server = new SSGS(1818, client => {
     // Called when a new client connects
     console.log('New client connected');
@@ -38,24 +42,21 @@ const server = new SSGS(1818, client => {
         console.log(`Voltage: ${update.voltage} mV`);
         console.log(`Update ID: ${update.updateID}`);
     };
+
+    // Called when a client disconnects
+    client.ondisconnect = () => {
+        console.log(`Client ${SSGS.uidToString(client.gatewayUID)} disconnected`);
+    };
 });
 ```
 
 ## Port Forwarding
-If you want gateways to be able to connect to your SSGS server from outside your local network, you need to forward external incoming traffic from UDP port 1818 (or the port the gateway was configured to connect to) to your SSGS server. It is recommended to keep all ports as 1818 unless you require multiple servers with the same public IP address.
+If you want gateways to be able to connect to your server from outside your local network, you need to forward external inbound traffic from UDP port 1818 (or the port the gateway was configured to connect to) to your SSGS server using a NAT rule. It is recommended to keep all ports as 1818 unless you require multiple SSGS servers with the same public IP address.
 
 ## Setting Up Gateways
-1. Connect the gateway to the internet via an ethernet cable. Power can be supplied to the gateway via Power over Ethernet (PoE) or the terminals.
-2. Navigate to https://gateway.sensorseal.com and sign in to your Gateway Manager account.
-3. Select the gateway you wish to configure.
-4. Choose **SSGS** as the Connectivity Type
-5. Enter the hostname of your SSGS server. This could be `ssgs.example.com` or `192.168.1.40` for example.
-6. Enter the port of the SSGS server. This should be kept as 1818 unless you specifically changed the server's listening port.
-7. Click **Generate Key** to generate a new key for this gateway.
-8. Make note of the Gateway UID and key as these will be required later.
-9. Click **Save Changes**.
+Please follow the instructions provided at https://www.sensorseal.com/docs/Configuring-Gateways/Software-Configuration/Getting-Started to configure gateways.
 
-## Configuring which gateways are allowed to connect
+## Configuring which gateways are allowed to connect to your server
 There are two ways in which gateways connecting to the server can be authorized or rejected:
 1. An `authorized.json` file can be created in the root of the project directory. This file should contain a JSON object with a single property called `authorized_gateways` which is an array of objects with the following properties:
    - `description`: A description of the gateway. This is optional.
@@ -76,21 +77,20 @@ An example of this is shown below:
 2. The `onconnectionattempt` callback can be set after creating the SSGS server. This callback is called when a gateway attempts to connect to the server and can be used to authorize or reject the connection. The callback is passed the gateway's UID, source address, and source port. It should return the key of the gateway if the connection is to be authorized, or `null` if the connection is to be rejected. For example:
 ```typescript
 server.onconnectionattempt = async (gatewayUID, remoteAddress, port) => {
-
-    // Check if the gateway is authorized and return the key if it is
+    // Using a database or similar, check if the gateway ID is authorized and return the corresponding PSK if it is
     // These two functions must be implemented by you
-    if (gatewayIsAuthorized(gatewayUID)) {
-        return getGatewayKey(gatewayUID);
+    if (await gatewayIsAuthorized(gatewayUID)) {
+        return await getGatewayKey(gatewayUID);
     }
     
-    return null; 
+    return null; // Reject the connection
 };
 ```
 
 ## Starting the Server
-Start the server with
+If using Node.js as a runtime, start the server with
 ```
 node index.js
 ```
-where `index.js` is the name of your project's entry point.
+where `index.js` is the name of your server's entry point.
 

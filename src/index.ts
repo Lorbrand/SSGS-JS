@@ -3,7 +3,7 @@
     Lorbrand Sensor Seal Gateway Server
     --------------------------------------------------------------
 
-    Copyright (C) 2023 Lorbrand (Pty) Ltd
+    Copyright (C) 2023-2024 Lorbrand (Pty) Ltd
 
     https://github.com/Lorbrand/SSGS-Node#readme
 
@@ -29,6 +29,8 @@ const SENT_MSG_LIST_MAX_LEN = 100;
 const RETRANSMISSION_COUNT_MAX = 10;
 const RETRANSMISSION_TIMEOUT_MS = 2000;
 const LAST_SEEN_TIMEOUT_MS = 30000; // if a client has not been seen for this long, it is removed from the connectedClients list
+const RETRANSMISSIONS_PER_CLIENT_PER_TICK = 10;
+const NUM_PACKET_IDS = 65536; // 2^16
 
 import * as dgram from 'node:dgram';
 import * as fs from 'node:fs/promises';
@@ -174,17 +176,17 @@ class SSGS {
         const now = Date.now();
 
         for (const client of this.connectedClients) {
-            // loop over the sent messages and check if any need to be retransmitted, limit to 10 messages per client per tick
+            // loop over the sent messages and check if any need to be retransmitted, limit to RETRANSMISSIONS_PER_CLIENT_PER_TICK messages per client per tick
             let retransmittedCount = 0;
 
             for (const sentMessage of client.sentMessages) {
-                if (retransmittedCount < 10 && now - sentMessage.timestamp > client.retransmissionTimeout) {
+                if (retransmittedCount < RETRANSMISSIONS_PER_CLIENT_PER_TICK && now - sentMessage.timestamp > client.retransmissionTimeout) {
                     // retransmit the message
                     this.socket.send(sentMessage.packet, client.sourcePort, client.remoteAddress, (err) => {
                         if (err)
                             logIfSSGSDebug('Error: Could not send packet: ' + err);
                     });
-                    logIfSSGSDebug('Retransmitting packet: ' + sentMessage.packetID + ', num pending: ' + client.sentMessages.length);
+                    logIfSSGSDebug('Retransmitting packet to client ' + SSGS.uidToString(client.gatewayUID) + ': ' + sentMessage.packetID + ', num pending: ' + client.sentMessages.length);
                     sentMessage.timestamp = Date.now();
                     sentMessage.retransmissionCount++;
 
@@ -200,15 +202,25 @@ class SSGS {
 
             // remove the client if it has not been seen for LAST_SEEN_TIMEOUT_MS
             if (now - client.lastSeen > LAST_SEEN_TIMEOUT_MS) {
-                const index = this.connectedClients.indexOf(client);
-                this.connectedClients.splice(index, 1);
-                client.connected = false;
-                client.ondisconnect();
+                this.removeClient(client);
                 logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to inactivity');
             }
 
         }
 
+    }
+
+    /**
+     * @method
+     * @param {Client} client - the client to remove
+     * @returns {void}
+     * Removes the client from the connectedClients list and calls the ondisconnect callback function
+     */
+    removeClient(client: Client) {
+        const index = this.connectedClients.indexOf(client);
+        this.connectedClients.splice(index, 1);
+        client.connected = false;
+        client.ondisconnect();
     }
 
 
@@ -262,11 +274,20 @@ class SSGS {
         client.sentMessages.push(sentMessage);
 
         // increment the packet ID
-        client.sendPacketID = (client.sendPacketID + 1) % 65536;
+        client.sendPacketID = (client.sendPacketID + 1) % NUM_PACKET_IDS;
 
         // if the sentMessages list is too long, remove the oldest message
+        // if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
+        //     client.sentMessages.shift();
+        // }
+
+        // Workaround: instead, if the sentMessages list is too long, remove the client so that it can reconnect
+        // if the number of sent messages is equal to SENT_MSG_LIST_MAX_LEN, this indicates there is a serious
+        // problem with the client or network (high latency), so we remove the client to try and resolve the issue
+        // This needs to be addressed properly in the future
         if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
-            client.sentMessages.shift();
+            this.removeClient(client);
+            logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to too many pending messages. It should reconnect after some time.');
         }
 
         // return the promise that will be resolved when the RCPTOK packet is received
@@ -355,6 +376,7 @@ class SSGS {
 
                 this.connectedClients.push(client);
                 this.onconnection(client);
+                logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'New client connected');
                 return;
             } else {
                 logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Client not found in connectedClients and packet type is not CONN');

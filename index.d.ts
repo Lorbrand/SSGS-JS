@@ -96,6 +96,13 @@ declare class SSGS {
     tickClients(): void;
     /**
      * @method
+     * @param {Client} client - the client to remove
+     * @returns {void}
+     * Removes the client from the connectedClients list and calls the ondisconnect callback function
+     */
+    removeClient(client: Client): void;
+    /**
+     * @method
      * @param {Client} client - the client to send the message to
      * @param {PacketType} packetType - the type of packet to send
      * @param {Buffer} payload - the payload of the packet
