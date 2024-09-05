@@ -40,7 +40,7 @@ export declare class SSGSCP {
     * @param {Buffer} key the key used to encrypt the encrypted portion of the packet
     * @returns {Buffer} a byte array containing the packed SSGSCP packet
     */
-    static packSSGSCP(packet: ParsedSSGSCPPacket, key: Buffer | Buffer): Buffer | null;
+    static packSSGSCP(packet: ParsedSSGSCPPacket, key: Buffer | Buffer): Promise<Buffer | null>;
     /**
      * Tries to parses a UDP datagram containing an SSGSCP packet
      * @static
@@ -48,7 +48,7 @@ export declare class SSGSCP {
      * @param {Buffer} key the key used to decrypt the encrypted portion of the packet
      * @returns {Object} the parsed SSGSCP packet fields or null if the packet cannot be parsed
      */
-    static parseSSGSCP(datagram: Buffer, key: Buffer): ParsedSSGSCPPacket;
+    static parseSSGSCP(datagram: Buffer, key: Buffer): Promise<ParsedSSGSCPPacket>;
     /**
      * Tries to parse a UDP datagram containing an SSGSCP packet and returns the gateway UID
      * @static

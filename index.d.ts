@@ -123,21 +123,21 @@ declare class SSGS {
      * @param {object} rinfo - the remote address information from the UDP socket
      * Sends a CONNFAIL packet to the remote address to indicate a connection failure
      */
-    sendCONNFAIL(rinfo: dgram.RemoteInfo, gatewayUID: Buffer): void;
+    sendCONNFAIL(rinfo: dgram.RemoteInfo, gatewayUID: Buffer): Promise<void>;
     /**
      * @method
      * @param {object} rinfo - the remote address information from the UDP socket
      * Sends a CONNACPT packet to the remote address to indicate a connection success
      * This packet is sent in response to a CONN packet
      */
-    sendCONNACPT(rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer): void;
+    sendCONNACPT(rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer): Promise<void>;
     /**
      * @method
      * @param {number} packetID - the packet ID to send
      * @param {object} rinfo - the remote address information from the UDP socket
      * Sends a RCPTOK packet to the remote address to indicate that the packet with the given packet ID was received correctly
      */
-    sendRCPTOK(packetID: number, rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer): void;
+    sendRCPTOK(packetID: number, rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer): Promise<void>;
     /**
      * @method
      * @param {Buffer} gatewayUID - the gateway UID to check

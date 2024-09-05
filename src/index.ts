@@ -233,7 +233,7 @@ class SSGS {
      * Sends a message to the specified client
      * The message is added to the sentMessages list and will be retransmitted if no RCPTOK packet is received within the retransmission timeout
      */
-    sendMSG(client: Client, packetType: PacketType, payload: Buffer): Promise<boolean> {
+    async sendMSG(client: Client, packetType: PacketType, payload: Buffer): Promise<boolean> {
         const packet: ParsedSSGSCPPacket = {
             packetType,
             gatewayUID: client.gatewayUID,
@@ -243,7 +243,7 @@ class SSGS {
 
         logIfSSGSDebug('Send to client: ' + JSON.stringify(packet));
 
-        const packedPacket = SSGSCP.packSSGSCP(packet, client.key);
+        const packedPacket = await SSGSCP.packSSGSCP(packet, client.key);
         if (!packedPacket) {
             logIfSSGSDebug('Error: Could not pack packet: ' + SSGSCP.errMsg);
             return;
@@ -291,7 +291,7 @@ class SSGS {
         }
 
         // return the promise that will be resolved when the RCPTOK packet is received
-        return promise;
+        return await promise;
     }
 
     /**
@@ -336,7 +336,7 @@ class SSGS {
         }
 
         // try parse the packet using the key
-        const parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
+        const parsedPacket = await SSGSCP.parseSSGSCP(datagram, key);
 
         if (!parsedPacket) { // could not parse the packet
             logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Could not parse packet: ' + SSGSCP.errMsg);
@@ -512,7 +512,7 @@ class SSGS {
      * @param {object} rinfo - the remote address information from the UDP socket
      * Sends a CONNFAIL packet to the remote address to indicate a connection failure
      */
-    sendCONNFAIL(rinfo: dgram.RemoteInfo, gatewayUID: Buffer) {
+    async sendCONNFAIL(rinfo: dgram.RemoteInfo, gatewayUID: Buffer) {
         const fields: ParsedSSGSCPPacket = {
             packetType: PacketType.CONNFAIL,
             packetID: 0,
@@ -521,7 +521,7 @@ class SSGS {
 
         // CONNFAIL packets are not encrypted
 
-        const packedPacket = SSGSCP.packSSGSCP(fields, Buffer.alloc(32));
+        const packedPacket = await SSGSCP.packSSGSCP(fields, Buffer.alloc(32));
         this.socket.send(packedPacket, rinfo.port, rinfo.address);
     }
 
@@ -531,14 +531,14 @@ class SSGS {
      * Sends a CONNACPT packet to the remote address to indicate a connection success
      * This packet is sent in response to a CONN packet
      */
-    sendCONNACPT(rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer) {
+    async sendCONNACPT(rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer) {
         const fields: ParsedSSGSCPPacket = {
             packetType: PacketType.CONNACPT,
             packetID: 0,
             gatewayUID: gatewayUID,
         };
 
-        const packedPacket = SSGSCP.packSSGSCP(fields, key);
+        const packedPacket = await SSGSCP.packSSGSCP(fields, key);
         this.socket.send(packedPacket, rinfo.port, rinfo.address);
         logIfSSGSDebug('Sent CONNACPT to ' + rinfo.address + ':' + rinfo.port);
     }
@@ -549,14 +549,14 @@ class SSGS {
      * @param {object} rinfo - the remote address information from the UDP socket
      * Sends a RCPTOK packet to the remote address to indicate that the packet with the given packet ID was received correctly
      */
-    sendRCPTOK(packetID: number, rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer) {
+    async sendRCPTOK(packetID: number, rinfo: dgram.RemoteInfo, key: Buffer, gatewayUID: Buffer) {
         const fields: ParsedSSGSCPPacket = {
             packetType: PacketType.RCPTOK,
             packetID: packetID,
             gatewayUID: gatewayUID,
         };
 
-        const packedPacket = SSGSCP.packSSGSCP(fields, key);
+        const packedPacket = await SSGSCP.packSSGSCP(fields, key);
         this.socket.send(packedPacket, rinfo.port, rinfo.address);
     }
 

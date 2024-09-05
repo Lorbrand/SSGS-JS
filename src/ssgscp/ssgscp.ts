@@ -55,7 +55,7 @@ export class SSGSCP {
     * @param {Buffer} key the key used to encrypt the encrypted portion of the packet
     * @returns {Buffer} a byte array containing the packed SSGSCP packet
     */
-    static packSSGSCP(packet: ParsedSSGSCPPacket, key: Buffer | Buffer): Buffer | null {
+    static async packSSGSCP(packet: ParsedSSGSCPPacket, key: Buffer | Buffer): Promise<Buffer | null> {
         // Ensure packetType is a 8-bit unsigned integer
         if (packet.packetType < 0x00 || packet.packetType > 0xff) {
             this.errMsg = 'packetType field should be a 8-bit unsigned integer';
@@ -102,8 +102,27 @@ export class SSGSCP {
         iv.set(crypto.randomBytes(8), 0);
 
         // Encrypt the encrypted portion
-        const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
-        const encryptedPortion = Buffer.concat([cipher.update(encryptedPortionPlaintext), cipher.final()]);
+        // const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+        // const encryptedPortion = Buffer.concat([cipher.update(encryptedPortionPlaintext), cipher.final()]);
+
+        const importedKey = await crypto.subtle.importKey(
+            "raw",
+            key,
+            "AES-CTR",
+            true,
+            ["encrypt", "decrypt"]
+        );
+        
+        const encryptedPortion = Buffer.from(await crypto.subtle.encrypt(
+            {
+                name: "AES-CTR",
+                counter: iv,
+                length: 64
+            },
+            importedKey,
+            encryptedPortionPlaintext
+            
+        ));
 
         // Pack the packet
         const packedPacket = Buffer.alloc(18 + encryptedPortion.length);
@@ -122,7 +141,7 @@ export class SSGSCP {
      * @param {Buffer} key the key used to decrypt the encrypted portion of the packet
      * @returns {Object} the parsed SSGSCP packet fields or null if the packet cannot be parsed
      */
-    static parseSSGSCP(datagram: Buffer, key: Buffer): ParsedSSGSCPPacket {
+    static async parseSSGSCP(datagram: Buffer, key: Buffer): Promise<ParsedSSGSCPPacket> {
         if (!SSGSCP.isSSGSCP(datagram)) // Check if the datagram is an SSGSCP packet
             return null;
 
@@ -136,10 +155,27 @@ export class SSGSCP {
         iv16.set(iv8, 0);
 
         // Decrypt the encrypted portion
-        const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv16);
-        const decrypted = decipher.update(encryptedPortion);
-        const final = decipher.final();
-        const decryptedPortion = Buffer.concat([decrypted, final]);
+        // const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv16);
+        // const decrypted = decipher.update(encryptedPortion);
+        // const final = decipher.final();
+        // const decryptedPortion = Buffer.concat([decrypted, final]);
+        const importedKey = await crypto.subtle.importKey(
+            "raw",
+            key,
+            "AES-CTR",
+            true,
+            ["encrypt", "decrypt"]
+        );
+        
+        const decryptedPortion = Buffer.from(await crypto.subtle.decrypt(
+            {
+                name: "AES-CTR",
+                counter: iv16,
+                length: 64
+            },
+            importedKey,
+            encryptedPortion
+        ));
 
         // Extract the fields from the decrypted portion
         const packetType = decryptedPortion[0]; // Packet Type is 1 byte

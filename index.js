@@ -185,54 +185,63 @@ var SSGS = /** @class */ (function () {
      * The message is added to the sentMessages list and will be retransmitted if no RCPTOK packet is received within the retransmission timeout
      */
     SSGS.prototype.sendMSG = function (client, packetType, payload) {
-        var packet = {
-            packetType: packetType,
-            gatewayUID: client.gatewayUID,
-            packetID: client.sendPacketID,
-            payload: payload
-        };
-        logIfSSGSDebug('Send to client: ' + JSON.stringify(packet));
-        var packedPacket = SSGSCP.packSSGSCP(packet, client.key);
-        if (!packedPacket) {
-            logIfSSGSDebug('Error: Could not pack packet: ' + SSGSCP.errMsg);
-            return;
-        }
-        this.socket.send(packedPacket, client.sourcePort, client.remoteAddress, function (err) {
-            if (err) {
-                logIfSSGSDebug('Error: Could not send packet: ' + err);
-            }
+        return __awaiter(this, void 0, void 0, function () {
+            var packet, packedPacket, resolve, promise, sentMessage;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        packet = {
+                            packetType: packetType,
+                            gatewayUID: client.gatewayUID,
+                            packetID: client.sendPacketID,
+                            payload: payload
+                        };
+                        logIfSSGSDebug('Send to client: ' + JSON.stringify(packet));
+                        return [4 /*yield*/, SSGSCP.packSSGSCP(packet, client.key)];
+                    case 1:
+                        packedPacket = _a.sent();
+                        if (!packedPacket) {
+                            logIfSSGSDebug('Error: Could not pack packet: ' + SSGSCP.errMsg);
+                            return [2 /*return*/];
+                        }
+                        this.socket.send(packedPacket, client.sourcePort, client.remoteAddress, function (err) {
+                            if (err) {
+                                logIfSSGSDebug('Error: Could not send packet: ' + err);
+                            }
+                        });
+                        promise = new Promise(function (res, rej) {
+                            resolve = res;
+                        });
+                        sentMessage = {
+                            packetID: client.sendPacketID,
+                            timestamp: Date.now(),
+                            packet: packedPacket,
+                            resolve: resolve,
+                            receivedOk: false,
+                            retransmissionCount: 0 // the number of times the message has been retransmitted
+                        };
+                        client.sentMessages.push(sentMessage);
+                        // increment the packet ID
+                        client.sendPacketID = (client.sendPacketID + 1) % NUM_PACKET_IDS;
+                        // if the sentMessages list is too long, remove the oldest message
+                        // if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
+                        //     client.sentMessages.shift();
+                        // }
+                        // Workaround: instead, if the sentMessages list is too long, remove the client so that it can reconnect
+                        // if the number of sent messages is equal to SENT_MSG_LIST_MAX_LEN, this indicates there is a serious
+                        // problem with the client or network (high latency), so we remove the client to try and resolve the issue
+                        // This needs to be addressed properly in the future
+                        if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
+                            this.removeClient(client);
+                            logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to too many pending messages. It should reconnect after some time.');
+                        }
+                        return [4 /*yield*/, promise];
+                    case 2: 
+                    // return the promise that will be resolved when the RCPTOK packet is received
+                    return [2 /*return*/, _a.sent()];
+                }
+            });
         });
-        // create a promise that will be resolved when the RCPTOK packet is received
-        var resolve;
-        var promise = new Promise(function (res, rej) {
-            resolve = res;
-        });
-        // add the sent message to the sentMessages list
-        var sentMessage = {
-            packetID: client.sendPacketID,
-            timestamp: Date.now(),
-            packet: packedPacket,
-            resolve: resolve,
-            receivedOk: false,
-            retransmissionCount: 0 // the number of times the message has been retransmitted
-        };
-        client.sentMessages.push(sentMessage);
-        // increment the packet ID
-        client.sendPacketID = (client.sendPacketID + 1) % NUM_PACKET_IDS;
-        // if the sentMessages list is too long, remove the oldest message
-        // if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
-        //     client.sentMessages.shift();
-        // }
-        // Workaround: instead, if the sentMessages list is too long, remove the client so that it can reconnect
-        // if the number of sent messages is equal to SENT_MSG_LIST_MAX_LEN, this indicates there is a serious
-        // problem with the client or network (high latency), so we remove the client to try and resolve the issue
-        // This needs to be addressed properly in the future
-        if (client.sentMessages.length > SENT_MSG_LIST_MAX_LEN) {
-            this.removeClient(client);
-            logIfSSGSDebug('Client ' + SSGS.uidToString(client.gatewayUID) + ' removed due to too many pending messages. It should reconnect after some time.');
-        }
-        // return the promise that will be resolved when the RCPTOK packet is received
-        return promise;
     };
     /**
      * @method
@@ -274,7 +283,9 @@ var SSGS = /** @class */ (function () {
                             logIfSSGSDebug('Error: Could not find key for gateway UID: ' + gatewayUID);
                             return [2 /*return*/];
                         }
-                        parsedPacket = SSGSCP.parseSSGSCP(datagram, key);
+                        return [4 /*yield*/, SSGSCP.parseSSGSCP(datagram, key)];
+                    case 3:
+                        parsedPacket = _c.sent();
                         if (!parsedPacket) { // could not parse the packet
                             logIfSSGSDebug(SSGS.uidToString(parsedPacket.gatewayUID) + ': ' + 'Error: Could not parse packet: ' + SSGSCP.errMsg);
                             this.sendCONNFAIL(rinfo, gatewayUID);
@@ -428,14 +439,24 @@ var SSGS = /** @class */ (function () {
      * Sends a CONNFAIL packet to the remote address to indicate a connection failure
      */
     SSGS.prototype.sendCONNFAIL = function (rinfo, gatewayUID) {
-        var fields = {
-            packetType: 3 /* PacketType.CONNFAIL */,
-            packetID: 0,
-            gatewayUID: gatewayUID,
-        };
-        // CONNFAIL packets are not encrypted
-        var packedPacket = SSGSCP.packSSGSCP(fields, Buffer.alloc(32));
-        this.socket.send(packedPacket, rinfo.port, rinfo.address);
+        return __awaiter(this, void 0, void 0, function () {
+            var fields, packedPacket;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        fields = {
+                            packetType: 3 /* PacketType.CONNFAIL */,
+                            packetID: 0,
+                            gatewayUID: gatewayUID,
+                        };
+                        return [4 /*yield*/, SSGSCP.packSSGSCP(fields, Buffer.alloc(32))];
+                    case 1:
+                        packedPacket = _a.sent();
+                        this.socket.send(packedPacket, rinfo.port, rinfo.address);
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     /**
      * @method
@@ -444,14 +465,25 @@ var SSGS = /** @class */ (function () {
      * This packet is sent in response to a CONN packet
      */
     SSGS.prototype.sendCONNACPT = function (rinfo, key, gatewayUID) {
-        var fields = {
-            packetType: 2 /* PacketType.CONNACPT */,
-            packetID: 0,
-            gatewayUID: gatewayUID,
-        };
-        var packedPacket = SSGSCP.packSSGSCP(fields, key);
-        this.socket.send(packedPacket, rinfo.port, rinfo.address);
-        logIfSSGSDebug('Sent CONNACPT to ' + rinfo.address + ':' + rinfo.port);
+        return __awaiter(this, void 0, void 0, function () {
+            var fields, packedPacket;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        fields = {
+                            packetType: 2 /* PacketType.CONNACPT */,
+                            packetID: 0,
+                            gatewayUID: gatewayUID,
+                        };
+                        return [4 /*yield*/, SSGSCP.packSSGSCP(fields, key)];
+                    case 1:
+                        packedPacket = _a.sent();
+                        this.socket.send(packedPacket, rinfo.port, rinfo.address);
+                        logIfSSGSDebug('Sent CONNACPT to ' + rinfo.address + ':' + rinfo.port);
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     /**
      * @method
@@ -460,13 +492,24 @@ var SSGS = /** @class */ (function () {
      * Sends a RCPTOK packet to the remote address to indicate that the packet with the given packet ID was received correctly
      */
     SSGS.prototype.sendRCPTOK = function (packetID, rinfo, key, gatewayUID) {
-        var fields = {
-            packetType: 10 /* PacketType.RCPTOK */,
-            packetID: packetID,
-            gatewayUID: gatewayUID,
-        };
-        var packedPacket = SSGSCP.packSSGSCP(fields, key);
-        this.socket.send(packedPacket, rinfo.port, rinfo.address);
+        return __awaiter(this, void 0, void 0, function () {
+            var fields, packedPacket;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        fields = {
+                            packetType: 10 /* PacketType.RCPTOK */,
+                            packetID: packetID,
+                            gatewayUID: gatewayUID,
+                        };
+                        return [4 /*yield*/, SSGSCP.packSSGSCP(fields, key)];
+                    case 1:
+                        packedPacket = _a.sent();
+                        this.socket.send(packedPacket, rinfo.port, rinfo.address);
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     /**
      * @method
